@@ -1,0 +1,29 @@
+[package]
+name = "kernel-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core kernel library of Subatomic OS."
+
+[dependencies]
+spin = { version = "0.10.0" }
+embedded-graphics = { version = "0.8.1", features = ["fixed_point"] }
+ustyle = "0.1.1"
+heapless = "0.9.2"
+crossbeam-queue = { version = "0.3.12", default-features = false, features = ["alloc"] }
+rustc-hash = { version = "2.1.1", default-features = false }
+hashbrown = { version = "0.16.1", default-features = false, features = ["inline-more"] }
+no-pico-args = "0.5.0"
+pci_types = { version = "0.10.0", optional = true }
+pc-keyboard = { workspace = true }
+limine = { workspace = true }
+log = { workspace = true }
+
+[features]
+default = []
+pci = ["pci_types"]
+
+[lib]
+name = "kernel_core"
+path = "src/lib.rs"
+test = false
+bench = false

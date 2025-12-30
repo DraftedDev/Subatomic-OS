@@ -1,0 +1,22 @@
+[package]
+name = "kernel-x86_64"
+version = "0.1.0"
+edition = "2024"
+description = "x86_64 target for Subatomic OS."
+
+[dependencies]
+x86_64 = "0.15.3"
+raw-cpuid = "11.6.0"
+talc = { version = "4.4.3", default-features = false }
+acpi = "6.0.1"
+x2apic = "0.5.0"
+pc-keyboard = { workspace = true }
+kernel-core = { workspace = true, features = ["pci"] }
+limine = { workspace = true }
+log = { workspace = true }
+
+[lib]
+name = "kernel_x86_64"
+path = "src/lib.rs"
+test = false
+bench = false

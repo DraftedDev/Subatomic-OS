@@ -1,0 +1,20 @@
+# Development Profile
+[profile.dev]
+panic = "abort"
+incremental = true
+rustflags = ["-Zthreads=0"]
+opt-level = 1 # This increases performance by A TON!!!
+
+# Release Profile
+[profile.release]
+panic = "abort"
+strip = true
+codegen-units = 1
+lto = true
+
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[build]
+target = "./target-x86_64.json"
