@@ -35,8 +35,6 @@ build-iso: build-kernel
 
     ./limine/limine bios-install {{ iso_path }}
 
-# TODO: make dependency for `qemu`
-
 # [doc("Get ovmf files for UEFI booting.")]
 get-ovmf:
     # Create ovmf directory
@@ -46,7 +44,7 @@ get-ovmf:
     curl -Lo ./target/ovmf/ovmf-vars-{{ arch }}.fd https://github.com/osdev0/edk2-ovmf-nightly/releases/download/nightly-20251203T012444Z/ovmf-vars-{{ arch }}.fd
 
 # [doc("Run the kernel ISO in QEMU.")]
-qemu: build-iso
+qemu: get-ovmf build-iso
     qemu-system-{{ arch }} \
         -M q35 \
         -drive if=pflash,unit=0,format=raw,file=./target/ovmf/ovmf-code-{{ arch }}.fd,readonly=on \
@@ -55,6 +53,14 @@ qemu: build-iso
         -serial stdio \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
         {{ qemu_flags }}
+
+# [doc("Update the ISO with the new kernel binary.")]
+update-iso: build-kernel
+    xorriso -dev {{ iso_path }} -boot_image any keep -update {{ out_path }}/kernel /boot/kernel -commit
+
+# [doc("Build the kernel, move it into the ISO and run qemu, instead of recreating the ISO.")]
+fast-qemu: update-iso
+    @just --no-deps qemu
 
 # [doc("Clean the target directory.")]
 clean:
