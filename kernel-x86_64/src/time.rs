@@ -42,7 +42,7 @@ pub fn read() -> Time {
         let reg_b = cmos_read(0x0B);
 
         // read again until stable
-        let (sec2, min2, hour2, day2, mon2, year2) = loop {
+        let (sec2, min2, mut hour, day2, mon2, year2) = loop {
             while rtc_update_in_progress() {}
 
             let s = cmos_read(0x00);
@@ -60,7 +60,6 @@ pub fn read() -> Time {
         // raw bytes (contain PM flag in bit 7 when 12-hour mode)
         let mut sec = sec2;
         let mut min = min2;
-        let mut hour = hour2; // keep raw copy until PM detection/conversion
         let mut day = day2;
         let mut month = mon2;
         let mut year = year2;
@@ -72,19 +71,19 @@ pub fn read() -> Time {
         if !is_binary {
             sec = bcd_to_bin(sec);
             min = bcd_to_bin(min);
-            hour = bcd_to_bin(hour2 & 0x7F); // convert only the numeric bits
+            hour = bcd_to_bin(hour & 0x7F); // convert only the numeric bits
             day = bcd_to_bin(day);
             month = bcd_to_bin(month);
             year = bcd_to_bin(year);
         } else {
             // binary mode: numeric value is already fine, but drop PM flag bit if present
-            hour = hour2 & 0x7F;
+            hour = hour & 0x7F;
         }
 
         // Handle 12-hour mode -> convert to 24-hour using the PM bit present in raw_hour
         let is_24h = (reg_b & 0x02) != 0;
         if !is_24h {
-            let pm = (hour2 & 0x80) != 0;
+            let pm = (hour & 0x80) != 0;
             // `hour` currently equals numeric hour in range 1..12
             if pm {
                 if hour != 12 {

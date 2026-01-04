@@ -5,7 +5,7 @@ edition = "2024"
 description = "x86_64 target for Subatomic OS."
 
 [dependencies]
-x86_64 = "0.15.3"
+x86_64 = "0.15.4"
 raw-cpuid = "11.6.0"
 talc = { version = "4.4.3", default-features = false }
 acpi = "6.0.1"

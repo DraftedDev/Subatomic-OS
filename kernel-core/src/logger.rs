@@ -90,8 +90,7 @@ impl Log for Logger {
         let level = record.level();
         let args = record.args();
 
-        // TODO: make level lowercase
-        write!(&mut SerialWriter, "[{}] {args}\n", level.as_str())
+        write!(&mut SerialWriter, "[{}] {args}\n", level_to_str(level))
             .expect("Failed to write log to serial");
 
         if control::is_init() {
@@ -112,4 +111,17 @@ impl Log for Logger {
     }
 
     fn flush(&self) {}
+}
+
+/// Converts a [Level} to a static string.
+///
+/// This is used, because [Level::as_str] returns capitalized strings.
+fn level_to_str(level: Level) -> &'static str {
+    match level {
+        Level::Error => "error",
+        Level::Warn => "warn",
+        Level::Info => "info",
+        Level::Debug => "debug",
+        Level::Trace => "trace",
+    }
 }
