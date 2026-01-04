@@ -145,8 +145,6 @@ impl InnerControl {
     const FOREGROUND: Rgb888 = Rgb888::new(235, 235, 235);
     const COMMAND_PREFIX: &'static str = "> ";
     const COMMAND_SUFFIX: &'static str = " ";
-    const MAX_CHARS_PER_LINE: usize = 9;
-    const MAX_LINES: usize = 18;
 
     /// Create a new control instance.
     pub fn new() -> Self {
