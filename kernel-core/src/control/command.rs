@@ -115,7 +115,7 @@ pub mod builtin {
                 "Print out the time or set the system time zone.\n\
             \tUsage: `time [local|utc|set <zone>|list]`\n\
             \tExample to get local time: `time local`\n\
-            \tExample to set the time zone to EST: `time set est`\n\
+            \tExample to set the time zone to EST: `time set EST`\n\
             \tExample to set the time zone to 10:30:00: `time set +10:+30:+00`\n\
             \tExample to list all available time zones: `time list`"
             ),
