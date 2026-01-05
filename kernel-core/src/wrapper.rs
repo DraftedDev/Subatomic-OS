@@ -64,7 +64,7 @@ pub struct ImplSync;
 
 unsafe impl<T, SEND> Sync for UnsafeWrapper<T, SEND, ImplSync> {}
 
-/// A wrapper that
+/// A wrapper around any type that implements [Any] or is `static`.
 pub struct AnyWrapper(Box<dyn Any>);
 
 impl AnyWrapper {
