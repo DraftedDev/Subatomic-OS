@@ -19,9 +19,11 @@ pub struct Command {
 pub mod builtin {
     use crate::control::command::Command;
     use crate::info::KernelInfo;
+    use crate::time::TimeZone;
     use crate::{api, requests};
     use alloc::format;
     use alloc::string::String;
+    use time::UtcOffset;
 
     /// Built-in commands.
     pub const COMMANDS: &[Command] = &[
@@ -33,8 +35,8 @@ pub mod builtin {
         },
         Command {
             name: "time",
-            description: "Prints the current time to the control.",
-            usage: "time",
+            description: "Prints the current time to the control or sets the time zone.",
+            usage: "time [local|utc|set <zone|+hh:+mm:+ss>|list]",
             run: time,
         },
     ];
@@ -61,18 +63,70 @@ pub mod builtin {
         Ok(())
     }
 
-    fn time(_: String) -> Result<(), String> {
-        let time = api::time().read();
+    fn time(sub: String) -> Result<(), String> {
+        match sub.as_str() {
+            sub if sub == "local" || sub == "utc" || sub.is_empty() => {
+                let time = if sub == "local" {
+                    api::time().read_local()
+                } else if sub == "utc" {
+                    api::time().read_utc().to_offset(UtcOffset::UTC)
+                } else {
+                    api::time().read_local()
+                };
 
-        log::info!(
-            "Time: secs({}) mins({}) hours({}) days({}) months({}) years({})",
-            time.sec,
-            time.min,
-            time.hour,
-            time.day,
-            time.month,
-            time.year,
-        );
+                log::info!(
+                    "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                    time.year(),
+                    time.month() as u8,
+                    time.day(),
+                    time.hour(),
+                    time.minute(),
+                    time.second()
+                );
+            }
+
+            sub if sub.starts_with("set ") => {
+                let (_, arg) = sub
+                    .split_once("set ")
+                    .ok_or("Invalid subcommand: {}. Usage: `time [local|utc|set <zone>|list]`.")?;
+                let arg = arg.trim();
+
+                let zone = TimeZone::parse(arg).ok_or(format!("Invalid time zone: {}", arg))?;
+                let (hours, mins, secs) = zone.to_offset();
+                api::time().set_offset(hours, mins, secs);
+
+                log::info!(
+                    "Time offset updated with hours({}) minutes({}) seconds({})",
+                    hours,
+                    mins,
+                    secs
+                );
+            }
+
+            "list" => {
+                log::info!("Listing all named time zones:");
+
+                for zone in TimeZone::NAMED_ZONES {
+                    log::info!("{} - {:?}", zone.as_symbol().unwrap(), zone);
+                }
+            }
+
+            "help" => log::info!(
+                "Print out the time or set the system time zone.\n\
+            \tUsage: `time [local|utc|set <zone>|list]`\n\
+            \tExample to get local time: `time local`\n\
+            \tExample to set the time zone to EST: `time set est`\n\
+            \tExample to set the time zone to 10:30:00: `time set +10:+30:+00`\n\
+            \tExample to list all available time zones: `time list`"
+            ),
+
+            _ => {
+                return Err(format!(
+                    "Invalid subcommand: {}. Usage: `time [local|utc|set <zone>|list]`.",
+                    sub
+                ));
+            }
+        }
 
         Ok(())
     }

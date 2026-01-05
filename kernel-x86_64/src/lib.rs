@@ -33,7 +33,6 @@ pub const KERNEL_API: KernelApi = KernelApi {
         read_u32: port::read_u32,
         write_u32: port::write_u32,
     },
-    // TODO
     memory: MemoryApi {
         is_init: memory::allocator::is_init,
         alloc: memory::allocator::alloc,
@@ -41,5 +40,9 @@ pub const KERNEL_API: KernelApi = KernelApi {
         dealloc: memory::allocator::dealloc,
         realloc: memory::allocator::realloc,
     },
-    time: TimeApi { read: time::read },
+    time: TimeApi {
+        read_local: time::read_local,
+        read_utc: time::read_utc,
+        set_offset: time::set_offset,
+    },
 };

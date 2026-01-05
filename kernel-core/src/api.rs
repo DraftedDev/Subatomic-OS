@@ -1,7 +1,7 @@
 use crate::info::KernelApiInfo;
 use crate::sync::init::InitData;
-use crate::time::Time;
 use core::alloc::Layout;
+use time::{OffsetDateTime, UtcDateTime};
 
 /// The size of the kernel heap in bytes.
 ///
@@ -202,13 +202,27 @@ impl MemoryApi {
 /// *NOTE:* This is not responsible for timed intervals or scheduling stuff.
 #[derive(Copy, Clone)]
 pub struct TimeApi {
-    /// Get the current system time.
-    pub read: fn() -> Time,
+    /// Get the local system time.
+    pub read_local: fn() -> OffsetDateTime,
+    /// Get the UTC system time.
+    pub read_utc: fn() -> UtcDateTime,
+    /// Set the offset of the local time.
+    pub set_offset: fn(hours: i8, minutes: i8, seconds: i8),
 }
 
 impl TimeApi {
-    /// Read the time from the internal clock.
-    pub fn read(&self) -> Time {
-        (self.read)()
+    /// Read the local system time from the internal clock.
+    pub fn read_local(&self) -> OffsetDateTime {
+        (self.read_local)()
+    }
+
+    /// Read the UTC system time from the internal clock.
+    pub fn read_utc(&self) -> UtcDateTime {
+        (self.read_utc)()
+    }
+
+    /// Set the offset of the local time.
+    pub fn set_offset(&self, hours: i8, minutes: i8, seconds: i8) {
+        (self.set_offset)(hours, minutes, seconds)
     }
 }

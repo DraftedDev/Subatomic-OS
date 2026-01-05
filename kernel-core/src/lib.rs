@@ -30,9 +30,6 @@ pub mod qemu;
 /// Contains the control infrastructure.
 pub mod control;
 
-/// Structures for time handling using a system-clock.
-pub mod time;
-
 /// Contains the [wrapper::UnsafeWrapper] to unsafely implement traits like [Send] and [Sync].
 pub mod wrapper;
 
@@ -41,3 +38,6 @@ pub mod style;
 
 /// Contains types for organized data collections.
 pub mod collections;
+
+/// Contains time handling using the [time] crate.
+pub mod time;
