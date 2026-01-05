@@ -2,7 +2,7 @@ use crate::collections::FastMap;
 use crate::control::command::{Command, builtin};
 use crate::control::display::DISPLAY;
 use crate::control::input::{INPUT, InputControl};
-use crate::style::TextBox;
+use crate::style::TerminalBox;
 use crate::sync::init::InitData;
 use crate::sync::mutex::Mutex;
 use alloc::format;
@@ -13,7 +13,6 @@ use embedded_graphics::Drawable;
 use embedded_graphics::mono_font::{MonoTextStyleBuilder, ascii};
 use embedded_graphics::pixelcolor::Rgb888;
 use pc_keyboard::DecodedKey;
-use ustyle::{Color, Style};
 
 /// Contains the [Display] type.
 pub mod display;
@@ -139,12 +138,15 @@ pub struct InnerControl {
 }
 
 impl InnerControl {
+    /// The command prefix.
+    pub const COMMAND_PREFIX: &'static str = "> ";
+    /// The command suffix.
+    pub const COMMAND_SUFFIX: &'static str = "|";
     const STRING_BUF_CAPACITY: usize = 1024;
     const COMMAND_BUF_CAPACITY: usize = 16;
+    const EXPANDED_TAB: &'static str = "    ";
     const BACKGROUND: Rgb888 = Rgb888::new(10, 10, 15);
     const FOREGROUND: Rgb888 = Rgb888::new(235, 235, 235);
-    const COMMAND_PREFIX: &'static str = "> ";
-    const COMMAND_SUFFIX: &'static str = " ";
 
     /// Create a new control instance.
     pub fn new() -> Self {
@@ -186,33 +188,9 @@ impl InnerControl {
     fn render(&mut self) {
         let display = unsafe { DISPLAY.get_mut() };
 
-        let mut buf = self.buf.clone();
-
-        // TODO: don't clone buf and just add the command as argument
-        // Add prefix
-        {
-            let style = Style::default();
-
-            style
-                .style_to(&mut buf, Self::COMMAND_PREFIX)
-                .expect("Failed to write command to buffer");
-
-            style
-                .style_to(&mut buf, self.command.as_str())
-                .expect("Failed to write command to buffer");
-        }
-
-        // Add suffix
-        {
-            let style = Style::default().with_background(Color::BrightGray);
-
-            style
-                .style_to(&mut buf, Self::COMMAND_SUFFIX)
-                .expect("Failed to write command to buffer");
-        }
-
-        TextBox::new(
-            &buf,
+        TerminalBox::new(
+            &self.buf,
+            &self.command,
             MonoTextStyleBuilder::new()
                 .text_color(Self::FOREGROUND)
                 .background_color(Self::BACKGROUND)
@@ -228,6 +206,24 @@ impl InnerControl {
 
 impl Write for InnerControl {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.buf.write_str(s)
+        for ch in s.chars() {
+            if ch == '\t' {
+                self.buf.push_str(Self::EXPANDED_TAB);
+            } else {
+                self.buf.push(ch);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn write_char(&mut self, c: char) -> core::fmt::Result {
+        if c == '\t' {
+            self.buf.push_str(InnerControl::EXPANDED_TAB);
+        } else {
+            self.buf.push(c);
+        }
+
+        Ok(())
     }
 }
