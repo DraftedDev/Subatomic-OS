@@ -1,5 +1,3 @@
-use alloc::boxed::Box;
-use core::any::Any;
 use core::ops::{Deref, DerefMut};
 
 /// A wrapper that implements [Send].
@@ -63,28 +61,3 @@ unsafe impl<T, SYNC> Send for UnsafeWrapper<T, ImplSend, SYNC> {}
 pub struct ImplSync;
 
 unsafe impl<T, SEND> Sync for UnsafeWrapper<T, SEND, ImplSync> {}
-
-/// A wrapper around any type that implements [Any] or is `static`.
-pub struct AnyWrapper(Box<dyn Any>);
-
-impl AnyWrapper {
-    /// Creates a new [AnyWrapper].
-    pub fn new<T: 'static>(value: T) -> Self {
-        Self(Box::new(value))
-    }
-
-    /// Returns a reference to the inner value.
-    pub fn get<T: 'static>(&self) -> Option<&T> {
-        self.0.downcast_ref::<T>()
-    }
-
-    /// Returns a mutable reference to the inner value.
-    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.0.downcast_mut::<T>()
-    }
-
-    /// Consumes the [AnyWrapper] and returns the inner value.
-    pub fn into_inner<T: 'static>(self) -> Option<Box<T>> {
-        self.0.downcast::<T>().ok()
-    }
-}
