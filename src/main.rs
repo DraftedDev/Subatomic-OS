@@ -60,6 +60,8 @@ unsafe fn init<'a>(filter: LevelFilter) {
         (kernel.init)();
     }
 
+    api::disable_interrupts();
+
     log::info!("Initializing Display...");
     unsafe {
         DISPLAY.init(Display::new());
@@ -69,6 +71,8 @@ unsafe fn init<'a>(filter: LevelFilter) {
     unsafe {
         control::init();
     }
+
+    api::enable_interrupts();
 
     log::info!("Setting up kernel...");
     unsafe {

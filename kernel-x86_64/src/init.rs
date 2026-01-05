@@ -3,8 +3,6 @@ use crate::memory::{allocator, frame_alloc, mapper};
 use crate::{cpuid, gdt, memory};
 
 pub unsafe fn init() {
-    x86_64::instructions::interrupts::disable();
-
     unsafe {
         log::info!("Initializing CpuId...");
         cpuid::init();
@@ -37,6 +35,4 @@ pub unsafe fn setup() {
         log::info!("Initializing Advanced Programmable Interrupt Controller...");
         apic::init();
     }
-
-    x86_64::instructions::interrupts::enable();
 }
