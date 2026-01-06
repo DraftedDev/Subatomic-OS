@@ -1,7 +1,7 @@
 use crate::acpi::{ACPI, HPET_CLOCK_TICK_UNIT, read_hpet_counter};
 use crate::interrupts::{INTERRUPT_OFFSET, InterruptVector};
 use crate::memory::mapper::map_address_if_not_present;
-use acpi::sdt::madt::{Madt, MadtEntry};
+use acpi::sdt::madt::MadtEntry;
 use kernel_core::sync::init::InitData;
 use x2apic::ioapic::IoApic;
 use x2apic::lapic::{LocalApic, LocalApicBuilder, TimerDivide, TimerMode};
@@ -35,12 +35,7 @@ pub unsafe fn init() {
         channel_0_port.write(0); // Send MSB
     }
 
-    // TODO: make MADT global in acpi.rs?
-    let madt = ACPI
-        .get()
-        .find_table::<Madt>()
-        .expect("failed to find MADT");
-    let madt = madt.get();
+    let madt = ACPI.get().madt.get();
 
     let io_apic = madt
         .entries()

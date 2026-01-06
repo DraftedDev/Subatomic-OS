@@ -2,10 +2,13 @@ use crate::memory::mapper::{
     map_address_if_not_present, map_address_range, translate_phys_addr_unsafe,
 };
 use acpi::aml::AmlError;
-use acpi::{AcpiTables, Handle, Handler, HpetInfo, PciAddress, PhysicalMapping};
+use acpi::sdt::madt::Madt;
+use acpi::sdt::mcfg::Mcfg;
+use acpi::{Handle, Handler, HpetInfo, PciAddress, PhysicalMapping};
 use core::ptr::NonNull;
 use kernel_core::requests;
 use kernel_core::sync::init::InitData;
+use kernel_core::wrapper::SendSyncWrapper;
 use x86_64::PhysAddr;
 use x86_64::structures::paging::PageTableFlags;
 
@@ -13,7 +16,7 @@ const HPET_GENERAL_CAPABILITIES_OFFSET: u64 = 0x00;
 const HPET_GENERAL_CONFIGURATION_OFFSET: u64 = 0x10;
 const HPET_MAIN_COUNTER_OFFSET: u64 = 0xF0;
 
-pub static ACPI: InitData<AcpiTables<AcpiHandler>> = InitData::uninit();
+pub static ACPI: InitData<AcpiTables> = InitData::uninit();
 pub static HPET_INFO: InitData<HpetInfo> = InitData::uninit();
 pub static HPET_CLOCK_TICK_UNIT: InitData<u64> = InitData::uninit();
 
@@ -21,12 +24,22 @@ pub unsafe fn init() {
     unsafe {
         let rsdp = requests::rsdp().address();
 
-        let acpi = ACPI
-            .init(AcpiTables::from_rsdp(AcpiHandler, rsdp).expect("failed to find acpi tables."));
+        let tables =
+            acpi::AcpiTables::from_rsdp(AcpiHandler, rsdp).expect("failed to find acpi tables.");
+
+        let madt = tables.find_table::<Madt>().expect("Failed to find MADT");
+        let mcfg = tables.find_table::<Mcfg>().expect("Failed to find MCfg");
+
+        let acpi = ACPI.init(AcpiTables {
+            tables,
+            madt: SendSyncWrapper::new(madt),
+            mcfg: SendSyncWrapper::new(mcfg),
+        });
 
         // init HPET
         {
-            let hpet = HPET_INFO.init(HpetInfo::new(acpi).expect("failed to find hpet info."));
+            let hpet =
+                HPET_INFO.init(HpetInfo::new(&acpi.tables).expect("failed to find hpet info."));
 
             let hpet_base_phys = hpet.base_address;
 
@@ -79,6 +92,12 @@ pub unsafe fn disable_hpet() {
 
     let general_config = (hpet_base + HPET_GENERAL_CONFIGURATION_OFFSET) as *mut u64;
     unsafe { general_config.write_volatile(0) }; // disable hpet
+}
+
+pub struct AcpiTables {
+    pub tables: acpi::AcpiTables<AcpiHandler>,
+    pub madt: SendSyncWrapper<PhysicalMapping<AcpiHandler, Madt>>,
+    pub mcfg: SendSyncWrapper<PhysicalMapping<AcpiHandler, Mcfg>>,
 }
 
 #[derive(Copy, Clone, Debug)]
