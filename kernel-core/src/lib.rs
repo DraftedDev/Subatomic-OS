@@ -41,3 +41,6 @@ pub mod collections;
 
 /// Contains time handling using the [time] crate.
 pub mod time;
+
+/// Contains external device infrastructure.
+pub mod device;
