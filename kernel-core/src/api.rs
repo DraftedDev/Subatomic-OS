@@ -63,10 +63,11 @@ pub fn enable_interrupts() {
 }
 
 /// Executes the given function without interrupts.
-pub fn without_interrupts<F: FnOnce()>(f: F) {
+pub fn without_interrupts<R, F: FnOnce() -> R>(f: F) -> R {
     disable_interrupts();
-    f();
+    let result = f();
     enable_interrupts();
+    result
 }
 
 /// Kernel API to abstract over common kernel functionalities.
