@@ -147,13 +147,13 @@ pub mod builtin {
                     crate::device::pci::PCI_HUB.get().run(|hub| {
                         for (idx, dev) in hub.devices().iter().enumerate() {
                             let dev = hub.get(dev).expect("Failed to get device");
-                            let (class, sub) = dev.class();
+                            let class = dev.class();
                             let (ven_id, dev_id) = dev.id();
 
                             log::info!(
                                 "{idx}: Device at Address {}\n\
                             \t- Header Type: {:?}\n\
-                            \t- Base/Sub Class: {:?}/{:?}\n\
+                            \t- Class: {:?}\n\
                             \t- Interface: {}\n\
                             \t- Revision: {}\n\
                             \t- Device/Vendor ID: {:?}/{:?}\n\
@@ -161,7 +161,6 @@ pub mod builtin {
                                 dev.addr(),
                                 dev.header_type(),
                                 class,
-                                sub,
                                 dev.interface(),
                                 dev.revision(),
                                 ven_id,

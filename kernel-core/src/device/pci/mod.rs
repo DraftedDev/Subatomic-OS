@@ -2,6 +2,7 @@
 #![allow(missing_docs)]
 
 use crate::collections::FastMap;
+use crate::device::pci::classes::Class;
 use crate::device::pci::config::PciConfig;
 use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
@@ -9,10 +10,11 @@ use crate::sync::init::InitData;
 use crate::sync::rwlock::RwLock;
 use alloc::vec::Vec;
 use pci_types::{
-    BaseClass, CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType,
-    Interface, PciAddress, PciHeader, SubClass, VendorId,
+    CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType, Interface,
+    PciAddress, PciHeader, VendorId,
 };
 
+pub mod classes;
 pub mod config;
 pub mod error;
 
@@ -28,7 +30,7 @@ pub struct PciDevice {
     header_type: HeaderType,
     id: (VendorId, DeviceId),
     command: CommandRegister,
-    class: (BaseClass, SubClass),
+    class: Class,
     interface: Interface,
     revision: DeviceRevision,
 }
@@ -47,7 +49,7 @@ impl PciDevice {
             header_type,
             id,
             command,
-            class: (base, sub),
+            class: Class::from_u8(base, sub),
             interface,
             revision,
         }
@@ -73,7 +75,7 @@ impl PciDevice {
         self.command
     }
 
-    pub fn class(&self) -> (BaseClass, SubClass) {
+    pub fn class(&self) -> Class {
         self.class
     }
 
