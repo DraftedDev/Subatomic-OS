@@ -18,6 +18,7 @@ pub struct Command {
 /// Built-in commands.
 pub mod builtin {
     use crate::control::command::Command;
+    use crate::device::DeviceHub;
     use crate::info::KernelInfo;
     use crate::time::TimeZone;
     use crate::{api, requests};
@@ -38,6 +39,13 @@ pub mod builtin {
             description: "Prints the current time to the control or sets the time zone.",
             usage: "time [local|utc|set <zone|+hh:+mm:+ss>|list]",
             run: time,
+        },
+        #[cfg(feature = "pci")]
+        Command {
+            name: "pci",
+            description: "Prints information about the PCI devices to the control.",
+            usage: "pci <info>",
+            run: pci,
         },
     ];
 
@@ -126,6 +134,45 @@ pub mod builtin {
                     sub
                 ));
             }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "pci")]
+    fn pci(sub: String) -> Result<(), String> {
+        match sub.as_str() {
+            "info" => {
+                api::without_interrupts(|| {
+                    crate::device::pci::PCI_HUB.get().run(|hub| {
+                        for (idx, dev) in hub.devices().iter().enumerate() {
+                            let dev = hub.get(dev).expect("Failed to get device");
+                            let (class, sub) = dev.class();
+                            let (ven_id, dev_id) = dev.id();
+
+                            log::info!(
+                                "{idx}: Device at Address {}\n\
+                            \t- Header Type: {:?}\n\
+                            \t- Base/Sub Class: {:?}/{:?}\n\
+                            \t- Interface: {}\n\
+                            \t- Revision: {}\n\
+                            \t- Device/Vendor ID: {:?}/{:?}\n\
+                            \t- Command: {:?}",
+                                dev.addr(),
+                                dev.header_type(),
+                                class,
+                                sub,
+                                dev.interface(),
+                                dev.revision(),
+                                ven_id,
+                                dev_id,
+                                dev.command(),
+                            );
+                        }
+                    })
+                });
+            }
+            _ => return Err(format!("Invalid subcommand: {}. Usage: `pci <info>`.", sub)),
         }
 
         Ok(())
