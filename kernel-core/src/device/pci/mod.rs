@@ -18,10 +18,8 @@ pub mod error;
 
 pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 
-pub unsafe fn init(ecam_base: usize) {
-    unsafe {
-        PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base)));
-    }
+pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
+    unsafe { PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base))) }
 }
 
 pub struct PciDevice {

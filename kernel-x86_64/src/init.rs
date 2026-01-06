@@ -1,6 +1,10 @@
+use crate::acpi::ACPI;
 use crate::interrupts::{apic, idt};
 use crate::memory::{allocator, frame_alloc, mapper};
 use crate::{cpuid, gdt, memory};
+use kernel_core::device::{DeviceHub, pci};
+use x86_64::PhysAddr;
+use x86_64::structures::paging::PageTableFlags;
 
 pub unsafe fn init() {
     unsafe {
@@ -34,5 +38,21 @@ pub unsafe fn setup() {
 
         log::info!("Initializing Advanced Programmable Interrupt Controller...");
         apic::init();
+
+        log::info!("Initializing PCI Device Hub...");
+        {
+            let mcfg = ACPI.get().mcfg.get();
+            let mcfg = mcfg.entries().first().expect("Failed to get MCFG");
+
+            let mapped = mapper::map_address_range(
+                PhysAddr::new(mcfg.base_address),
+                (mcfg.bus_number_end as usize - mcfg.bus_number_start as usize + 1) * 0x100000, // 1MB per bus
+                PageTableFlags::PRESENT | PageTableFlags::NO_CACHE | PageTableFlags::WRITABLE,
+            );
+
+            pci::init(mapped.as_u64() as usize)
+                .run_mut(|hub| hub.init())
+                .expect("Failed to initialize PCI Hub");
+        }
     }
 }
