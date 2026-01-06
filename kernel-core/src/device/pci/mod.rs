@@ -5,6 +5,8 @@ use crate::collections::FastMap;
 use crate::device::pci::config::PciConfig;
 use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
+use crate::sync::init::InitData;
+use crate::sync::rwlock::RwLock;
 use alloc::vec::Vec;
 use pci_types::{
     BaseClass, CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType,
@@ -13,6 +15,14 @@ use pci_types::{
 
 pub mod config;
 pub mod error;
+
+pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
+
+pub unsafe fn init(ecam_base: usize) {
+    unsafe {
+        PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base)));
+    }
+}
 
 pub struct PciDevice {
     addr: PciAddress,
