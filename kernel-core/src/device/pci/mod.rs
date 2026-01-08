@@ -2,6 +2,7 @@
 #![allow(missing_docs)]
 
 use crate::collections::FastMap;
+use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
 use crate::device::pci::config::PciConfig;
 use crate::device::pci::error::PciError;
@@ -14,6 +15,7 @@ use pci_types::{
     PciAddress, PciHeader, VendorId,
 };
 
+pub mod caps;
 pub mod classes;
 pub mod config;
 pub mod error;
@@ -25,6 +27,7 @@ pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
 }
 
 pub struct PciDevice {
+    config: PciConfig,
     addr: PciAddress,
     header: PciHeader,
     header_type: HeaderType,
@@ -33,6 +36,7 @@ pub struct PciDevice {
     class: Class,
     interface: Interface,
     revision: DeviceRevision,
+    capabilities: PciCapabilities,
 }
 
 impl PciDevice {
@@ -44,6 +48,7 @@ impl PciDevice {
         let (revision, base, sub, interface) = header.revision_and_class(config);
 
         Self {
+            config,
             addr,
             header,
             header_type,
@@ -52,7 +57,12 @@ impl PciDevice {
             class: Class::from_u8(base, sub),
             interface,
             revision,
+            capabilities: PciCapabilities::new(&config, addr),
         }
+    }
+
+    pub fn has_multiple_functions(&self) -> bool {
+        self.header.has_multiple_functions(self.config)
     }
 
     pub fn addr(&self) -> PciAddress {
@@ -85,6 +95,10 @@ impl PciDevice {
 
     pub fn revision(&self) -> DeviceRevision {
         self.revision
+    }
+
+    pub fn capabilities(&self) -> &PciCapabilities {
+        &self.capabilities
     }
 }
 

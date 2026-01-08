@@ -157,7 +157,8 @@ pub mod builtin {
                             \t- Interface: {}\n\
                             \t- Revision: {}\n\
                             \t- Device/Vendor ID: {:?}/{:?}\n\
-                            \t- Command: {:?}",
+                            \t- Command: {:?}\n\
+                            \t- Capabilities: {:?}",
                                 dev.addr(),
                                 dev.header_type(),
                                 class,
@@ -166,6 +167,7 @@ pub mod builtin {
                                 ven_id,
                                 dev_id,
                                 dev.command(),
+                                dev.capabilities()
                             );
                         }
                     })
