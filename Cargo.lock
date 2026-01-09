@@ -268,9 +268,9 @@ checksum = "c3c8dda44ff03a2f238717214da50f65d5a53b45cd213a7370424ffdb6fae815"
 
 [[package]]
 name = "no-pico-args"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a33f7a87e5d60573136fdb51d32fba5b4cbb6fff0adfa5c6729ee051158eaf39"
+checksum = "255989625d240f7d2b31b149ed971c16609431fe019d0feb4819f4b4f3c0376a"
 
 [[package]]
 name = "num-conv"

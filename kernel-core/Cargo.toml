@@ -13,7 +13,7 @@ crossbeam-queue = { version = "0.3.12", default-features = false, features = ["a
 rustc-hash = { version = "2.1.1", default-features = false }
 hashbrown = { version = "0.16.1", default-features = false, features = ["inline-more"] }
 time = { version = "0.3.44", default-features = false, features = ["alloc"] }
-no-pico-args = "0.5.0"
+no-pico-args = "0.5.1"
 pci_types = { version = "0.10.0", optional = true }
 pc-keyboard = { workspace = true }
 limine = { workspace = true }
