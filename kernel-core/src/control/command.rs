@@ -26,6 +26,7 @@ pub mod builtin {
     use alloc::format;
     use alloc::string::{String, ToString};
     use core::fmt::Write;
+    use log::Level;
     use no_pico_args::Arguments;
     use time::UtcOffset;
 
@@ -48,6 +49,12 @@ pub mod builtin {
             description: "Prints a string to the control.",
             usage: "print <string>",
             run: print,
+        },
+        Command {
+            name: "log",
+            description: "Logs a message to the control.",
+            usage: "log <message>",
+            run: log,
         },
         #[cfg(feature = "pci")]
         Command {
@@ -162,6 +169,23 @@ pub mod builtin {
             .get()
             .run(|ctrl| writeln!(ctrl, "{}", sub))
             .map_err(|err| err.to_string())?;
+
+        Ok(())
+    }
+
+    fn log(sub: String) -> Result<(), String> {
+        let mut args = Arguments::from_string(sub);
+
+        let level: Level = args.value_from_str("--level").map_err(|err| match err {
+            no_pico_args::Error::MissingArgument => {
+                "Missing log level. Please use `--level <level>` to specify one.".to_string()
+            }
+            _ => err.to_string(),
+        })?;
+
+        let rest = args.finish().join(" ");
+
+        log::log!(level, "{}", rest);
 
         Ok(())
     }
