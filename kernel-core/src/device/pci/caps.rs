@@ -175,8 +175,11 @@ impl MsixCap {
 /// PCI Express Capability
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PcieCap {
+    /// The PCIe version.
     pub version: u8,
+    /// The PCIe device type.
     pub device_type: u8,
+    /// If the PCIe device slot is implemented.
     pub slot_implemented: bool,
 }
 

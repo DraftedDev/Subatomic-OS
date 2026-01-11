@@ -1,6 +1,3 @@
-// TODO: document
-#![allow(missing_docs)]
-
 use crate::collections::FastMap;
 use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
@@ -16,17 +13,31 @@ use pci_types::{
     PciAddress, PciHeader, VendorId,
 };
 
+/// Contains PCI device capabilities.
 pub mod caps;
+
+/// Contains classes and subclasses of PCI devices.
 pub mod classes;
+
+/// Contains the [PciConfig] type.
 pub mod config;
+
+/// Contains the [PciError] type.
 pub mod error;
 
+/// The global [PciDeviceHub].
 pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 
+/// Initialize the global [PCI_HUB] with the given ECAM base address.
+///
+/// # Safety
+/// This function is unsafe, because the caller must guarantee
+/// that this is called before any [PciDeviceHub] operations and only once.
 pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
     unsafe { PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base))) }
 }
 
+/// A PCI device.
 pub struct PciDevice {
     config: PciConfig,
     addr: PciAddress,
@@ -41,6 +52,7 @@ pub struct PciDevice {
 }
 
 impl PciDevice {
+    /// Create a new [PciDevice] with the given [PciAddress] and [PciConfig].
     pub fn new(addr: PciAddress, config: PciConfig) -> Self {
         let header = PciHeader::new(addr);
         let id = header.id(config);
@@ -62,42 +74,52 @@ impl PciDevice {
         }
     }
 
+    /// Returns if the device has multiple functions.
     pub fn has_multiple_functions(&self) -> bool {
         self.header.has_multiple_functions(self.config)
     }
 
+    /// Returns the PCI device address.
     pub fn addr(&self) -> PciAddress {
         self.addr
     }
 
+    /// Returns the PCI device header.
     pub fn header(&self) -> &PciHeader {
         &self.header
     }
 
+    /// Returns the PCI device header type.
     pub fn header_type(&self) -> HeaderType {
         self.header_type
     }
 
+    /// Returns the PCI device vendor and device ID.
     pub fn id(&self) -> (VendorId, DeviceId) {
         self.id
     }
 
+    /// Returns the PCI device command register.
     pub fn command(&self) -> CommandRegister {
         self.command
     }
 
+    /// Returns the PCI device class.
     pub fn class(&self) -> Class {
         self.class
     }
 
+    /// Returns the PCI device interface.
     pub fn interface(&self) -> Interface {
         self.interface
     }
 
+    /// Returns the PCI device revision.
     pub fn revision(&self) -> DeviceRevision {
         self.revision
     }
 
+    /// Returns the PCI device capabilities.
     pub fn capabilities(&self) -> &PciCapabilities {
         &self.capabilities
     }
@@ -108,12 +130,14 @@ impl Device for PciDevice {
     type Error = PciError;
 }
 
+/// The device hub to control all PCI devices.
 pub struct PciDeviceHub {
     devices: FastMap<u32, (PciDevice, Box<dyn PciDriver>)>,
     config: PciConfig,
 }
 
 impl PciDeviceHub {
+    /// Create a new [PciDeviceHub] with the given ECAM base address.
     pub fn new(ecam_base: usize) -> Self {
         Self {
             devices: FastMap::default(),
@@ -220,17 +244,26 @@ impl DeviceHub for PciDeviceHub {
     ) -> Result<Self::Driver, Self::Error> {
         let (dev, old_driver) = self.devices.remove(id).ok_or(PciError::DeviceNotFound)?;
 
+        driver.init(&dev);
+
         self.devices.insert(*id, (dev, driver));
 
         Ok(old_driver)
     }
 }
 
+/// A trait to define PCI device drivers.
+///
+/// Drivers should implement any message signaling and other functions by themselves.
 pub trait PciDriver: Send + Sync + 'static {
+    /// Initialize the device driver.
+    ///
+    /// Called when the driver is installed via [PciDeviceHub::install].
     fn init(&self, device: &PciDevice);
 }
 
-struct NoopDriver;
+/// A no-op driver that does nothing.
+pub struct NoopDriver;
 
 impl PciDriver for NoopDriver {
     fn init(&self, _: &PciDevice) {}

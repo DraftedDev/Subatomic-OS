@@ -42,7 +42,12 @@ pub enum Class {
     /// Non-Essential Instrumentation
     NonEssentialInstrumentation(NonEssentialInstrumentationSubClass),
     /// Unknown or vendor-specific class
-    Unknown { class: u8, subclass: u8 },
+    Unknown {
+        /// The device base class.
+        class: u8,
+        /// The device subclass.
+        subclass: u8,
+    },
 }
 
 impl Class {
@@ -108,23 +113,35 @@ impl Class {
     }
 }
 
-/// PCI Subclasses for Mass Storage Controller (BaseClass 0x01)
+/// PCI Subclasses for **Mass Storage Controller** (Base Class `0x01`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MassStorageSubClass {
+    /// SCSI storage controller
     SCSI,
+    /// IDE storage controller
     IDE,
+    /// Floppy disk controller
     Floppy,
+    /// IPI storage controller
     IPI,
+    /// RAID controller
     RAID,
+    /// ATA controller
     ATA,
+    /// SATA controller
     SATA,
+    /// SAS controller
     SAS,
+    /// Non-Volatile Memory controller (e.g., NVMe)
     NonVolatileMemory,
+    /// Other subclass defined by vendor or reserved
     Other,
+    /// Unknown or unrecognized subclass
     Unknown(u8),
 }
 
 impl MassStorageSubClass {
+    /// Converts a raw `u8` value from PCI config space into a [MassStorageSubClass] variant.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::SCSI,
@@ -141,6 +158,7 @@ impl MassStorageSubClass {
         }
     }
 
+    /// Converts a [MassStorageSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::SCSI => 0x00,
@@ -158,22 +176,33 @@ impl MassStorageSubClass {
     }
 }
 
-/// PCI Subclasses for Network Controller (BaseClass 0x02)
+/// PCI Subclasses for Network Controller (BaseClass `0x02`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkSubClass {
+    /// Ethernet controller.
     Ethernet,
+    /// Token ring controller.
     TokenRing,
+    /// FDDI controller.
     FDDI,
+    /// ATM controller.
     ATM,
+    /// ISDN controller.
     ISDN,
+    /// World Fip controller
     WorldFip,
+    /// PICMG controller.
     PICMG,
+    /// Infiniband controller.
     Infiniband,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl NetworkSubClass {
+    /// Converts a [NetworkSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Ethernet,
@@ -189,6 +218,7 @@ impl NetworkSubClass {
         }
     }
 
+    /// Converts a [NetworkSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Ethernet => 0x00,
@@ -208,14 +238,20 @@ impl NetworkSubClass {
 /// PCI Subclasses for Display Controller (BaseClass 0x03)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplaySubClass {
+    /// VGA-Compatible controller.
     VGACompatible,
+    /// XGA controller.
     XGA,
+    /// 3D controller.
     _3DController,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl DisplaySubClass {
+    /// Converts a [DisplaySubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::VGACompatible,
@@ -226,6 +262,7 @@ impl DisplaySubClass {
         }
     }
 
+    /// Converts a [DisplaySubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::VGACompatible => 0x00,
@@ -240,14 +277,20 @@ impl DisplaySubClass {
 /// PCI Subclasses for Multimedia Controller (BaseClass 0x04)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MultimediaSubClass {
+    /// Video controller.
     Video,
+    /// Audio controller.
     Audio,
+    /// Computer peripherals controller.
     ComputerPeripherals,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl MultimediaSubClass {
+    /// Converts a [MultimediaSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Video,
@@ -258,6 +301,7 @@ impl MultimediaSubClass {
         }
     }
 
+    /// Converts a [MultimediaSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Video => 0x00,
@@ -272,13 +316,18 @@ impl MultimediaSubClass {
 /// PCI Subclasses for Memory Controller (BaseClass 0x05)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemorySubClass {
+    /// RAM controller.
     RAMController,
+    /// Flash controller.
     FlashController,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl MemorySubClass {
+    /// Converts a [MemorySubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::RAMController,
@@ -288,6 +337,7 @@ impl MemorySubClass {
         }
     }
 
+    /// Converts a [MemorySubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::RAMController => 0x00,
@@ -301,20 +351,32 @@ impl MemorySubClass {
 /// PCI Subclasses for Bridge Device (BaseClass 0x06)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BridgeDeviceSubClass {
+    /// Host bridge.
     Host,
+    /// ISA bridge.
     ISA,
+    /// EISA bridge.
     EISA,
+    /// Micro Channel bridge.
     MicroChannel,
+    /// PCI to PCI bridge.
     PCItoPCI,
+    /// PCMCIA bridge.
     PCMCIA,
+    /// NuBus bridge.
     NuBus,
+    /// CardBus bridge.
     CardBus,
+    /// RAID controller bridge.
     RACEway,
+    /// Other bridge.
     Other,
+    /// Unknown bridge.
     Unknown(u8),
 }
 
 impl BridgeDeviceSubClass {
+    /// Converts a [BridgeDeviceSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Host,
@@ -331,6 +393,7 @@ impl BridgeDeviceSubClass {
         }
     }
 
+    /// Converts a [BridgeDeviceSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Host => 0x00,
@@ -351,17 +414,26 @@ impl BridgeDeviceSubClass {
 /// PCI Subclasses for Simple Communication Controller (BaseClass 0x07)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimpleCommunicationSubClass {
+    /// Serial controller.
     Serial,
+    /// Parallel controller.
     Parallel,
+    /// Multi-port serial controller.
     MultiPortSerial,
+    /// Modem controller.
     Modem,
+    /// GPIB controller.
     GPIB,
+    /// Smart card controller.
     SmartCard,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl SimpleCommunicationSubClass {
+    /// Converts a [SimpleCommunicationSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Serial,
@@ -375,6 +447,7 @@ impl SimpleCommunicationSubClass {
         }
     }
 
+    /// Converts a [SimpleCommunicationSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Serial => 0x00,
@@ -392,17 +465,26 @@ impl SimpleCommunicationSubClass {
 /// PCI Subclasses for Base System Peripheral (BaseClass 0x0B)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BaseSystemPeripheralSubClass {
+    /// PIC peripheral.
     PIC,
+    /// DMA peripheral.
     DMAController,
+    /// Timer peripheral.
     Timer,
+    /// RTC peripheral.
     RTC,
+    /// PCI-Hot-Plug peripheral.
     PCIHotPlug,
+    /// SD Host peripheral.
     SDHostController,
+    /// Other peripheral.
     Other,
+    /// Unknown peripheral.
     Unknown(u8),
 }
 
 impl BaseSystemPeripheralSubClass {
+    /// Converts a [BaseSystemPeripheralSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::PIC,
@@ -416,6 +498,7 @@ impl BaseSystemPeripheralSubClass {
         }
     }
 
+    /// Converts a [BaseSystemPeripheralSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::PIC => 0x00,
@@ -433,14 +516,20 @@ impl BaseSystemPeripheralSubClass {
 /// PCI Subclasses for Input Device Controller (BaseClass 0x0D)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputDeviceSubClass {
+    /// Keyboard controller.
     KeyboardController,
+    /// Digitizer controller.
     Digitizer,
+    /// Mouse controller.
     MouseController,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl InputDeviceSubClass {
+    /// Converts a [InputDeviceSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::KeyboardController,
@@ -451,6 +540,7 @@ impl InputDeviceSubClass {
         }
     }
 
+    /// Converts a [InputDeviceSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::KeyboardController => 0x00,
@@ -465,12 +555,16 @@ impl InputDeviceSubClass {
 /// PCI Subclasses for Docking Station (BaseClass 0x0E)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DockingStationSubClass {
+    /// Generic docking station.
     Generic,
+    /// Other docking station.
     Other,
+    /// Unknown docking station.
     Unknown(u8),
 }
 
 impl DockingStationSubClass {
+    /// Converts a [DockingStationSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -479,6 +573,7 @@ impl DockingStationSubClass {
         }
     }
 
+    /// Converts a [DockingStationSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
@@ -491,18 +586,28 @@ impl DockingStationSubClass {
 /// PCI Subclasses for Processor (BaseClass 0x0B)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessorSubClass {
+    /// I386 processor.
     I386,
+    /// I486 processor.
     I486,
+    /// Pentium processor.
     Pentium,
+    /// Alpha processor.
     Alpha,
+    /// PowerPC processor.
     PowerPC,
+    /// MIPS processor.
     MIPS,
+    /// Co processor.
     CoProcessor,
+    /// Other processor.
     Other,
+    /// Unknown processor.
     Unknown(u8),
 }
 
 impl ProcessorSubClass {
+    /// Converts a [ProcessorSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::I386,
@@ -517,6 +622,7 @@ impl ProcessorSubClass {
         }
     }
 
+    /// Converts a [ProcessorSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::I386 => 0x00,
@@ -535,19 +641,30 @@ impl ProcessorSubClass {
 /// PCI Subclasses for Serial Bus Controller (BaseClass 0x0C)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SerialBusSubClass {
+    /// Fire wire controller.
     FireWire,
+    /// Access bus controller.
     AccessBus,
+    /// SSA controller.
     SSA,
+    /// USB controller.
     USB,
+    /// Fibre channel controller.
     FibreChannel,
+    /// SM bus controller.
     SMBus,
+    /// InfiniBand controller.
     InfiniBand,
+    /// IPMI controller.
     IPMI,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl SerialBusSubClass {
+    /// Converts a [SerialBusSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::FireWire,
@@ -563,6 +680,7 @@ impl SerialBusSubClass {
         }
     }
 
+    /// Converts a [SerialBusSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::FireWire => 0x00,
@@ -582,15 +700,22 @@ impl SerialBusSubClass {
 /// PCI Subclasses for Wireless Controller (BaseClass 0x0D)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WirelessSubClass {
+    /// IrDA controller.
     IrDA,
+    /// Consumer IR controller.
     ConsumerIR,
+    /// RF controller.
     RF,
+    /// Bluetooth controller.
     Bluetooth,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl WirelessSubClass {
+    /// Converts a [WirelessSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::IrDA,
@@ -602,6 +727,7 @@ impl WirelessSubClass {
         }
     }
 
+    /// Converts a [WirelessSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::IrDA => 0x00,
@@ -617,12 +743,16 @@ impl WirelessSubClass {
 /// PCI Subclasses for Intelligent I/O Controller (BaseClass 0x0E)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntelligentIOSubClass {
+    /// I20 controller.
     I2O,
+    /// Other controller.
     Other,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl IntelligentIOSubClass {
+    /// Converts a [IntelligentIOSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::I2O,
@@ -631,6 +761,7 @@ impl IntelligentIOSubClass {
         }
     }
 
+    /// Converts a [IntelligentIOSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::I2O => 0x00,
@@ -643,11 +774,14 @@ impl IntelligentIOSubClass {
 /// PCI Subclasses for Satellite Communication Controller (BaseClass X)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SatelliteCommunicationSubClass {
+    /// Generic controller.
     Generic,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl SatelliteCommunicationSubClass {
+    /// Converts a [SatelliteCommunicationSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -655,6 +789,7 @@ impl SatelliteCommunicationSubClass {
         }
     }
 
+    /// Converts a [SatelliteCommunicationSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
@@ -666,11 +801,14 @@ impl SatelliteCommunicationSubClass {
 /// PCI Subclasses for Encryption/Decryption Controller (BaseClass X)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionSubClass {
+    /// Generic controller.
     Generic,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl EncryptionSubClass {
+    /// Converts a [EncryptionSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -678,6 +816,7 @@ impl EncryptionSubClass {
         }
     }
 
+    /// Converts a [EncryptionSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
@@ -689,11 +828,14 @@ impl EncryptionSubClass {
 /// PCI Subclasses for Signal Processing Controller (BaseClass X)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignalProcessingSubClass {
+    /// Generic controller.
     Generic,
+    /// Unknown controller.
     Unknown(u8),
 }
 
 impl SignalProcessingSubClass {
+    /// Converts a [SignalProcessingSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -701,6 +843,7 @@ impl SignalProcessingSubClass {
         }
     }
 
+    /// Converts a [SignalProcessingSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
@@ -712,11 +855,14 @@ impl SignalProcessingSubClass {
 /// PCI Subclasses for Processing Accelerator (BaseClass X)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessingAcceleratorSubClass {
+    /// Generic accelerator.
     Generic,
+    /// Unknown accelerator.
     Unknown(u8),
 }
 
 impl ProcessingAcceleratorSubClass {
+    /// Converts a [ProcessingAcceleratorSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -724,6 +870,7 @@ impl ProcessingAcceleratorSubClass {
         }
     }
 
+    /// Converts a [ProcessingAcceleratorSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
@@ -735,11 +882,14 @@ impl ProcessingAcceleratorSubClass {
 /// PCI Subclasses for Non-Essential Instrumentation (BaseClass X)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NonEssentialInstrumentationSubClass {
+    /// Generic instrumentation.
     Generic,
+    /// Unknown instrumentation.
     Unknown(u8),
 }
 
 impl NonEssentialInstrumentationSubClass {
+    /// Converts a [NonEssentialInstrumentationSubClass] variant back into its raw `u8` representation.
     pub fn from_u8(val: u8) -> Self {
         match val {
             0x00 => Self::Generic,
@@ -747,6 +897,7 @@ impl NonEssentialInstrumentationSubClass {
         }
     }
 
+    /// Converts a [NonEssentialInstrumentationSubClass] variant back into its raw `u8` representation.
     pub fn to_u8(&self) -> u8 {
         match *self {
             Self::Generic => 0x00,
