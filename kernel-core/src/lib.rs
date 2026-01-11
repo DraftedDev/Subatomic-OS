@@ -34,7 +34,7 @@ pub mod control;
 pub mod wrapper;
 
 /// Contains styling functionality using [ustyle].
-pub mod style;
+pub mod terminal;
 
 /// Contains types for organized data collections.
 pub mod collections;

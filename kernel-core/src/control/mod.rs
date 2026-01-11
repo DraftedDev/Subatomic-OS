@@ -1,18 +1,24 @@
 use crate::collections::FastMap;
 use crate::control::command::{Command, builtin};
-use crate::control::display::DISPLAY;
+use crate::control::display::{DISPLAY, Display};
 use crate::control::input::{INPUT, InputControl};
-use crate::style::TerminalBox;
 use crate::sync::init::InitData;
 use crate::sync::mutex::Mutex;
+use crate::terminal::TerminalBox;
+use crate::wrapper::SendSyncWrapper;
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use core::fmt::Write;
 use crossbeam_queue::SegQueue;
-use embedded_graphics::Drawable;
-use embedded_graphics::mono_font::{MonoTextStyleBuilder, ascii};
 use embedded_graphics::pixelcolor::Rgb888;
+use mousefood::{EmbeddedBackend, EmbeddedBackendConfig, TerminalAlignment};
 use pc_keyboard::DecodedKey;
+use ratatui::Terminal;
+use ratatui::backend::Backend;
+use ratatui::layout::Rect;
+use ratatui::widgets::{Block, BorderType, Borders};
+use ustyle::{Attributes, Color, Style};
 
 /// Contains the [Display] type.
 pub mod display;
@@ -56,7 +62,7 @@ impl Control {
     const MAX_EXECUTED_COMMANDS: u8 = 4;
 
     /// Create a new control instance.
-    pub fn new() -> Self {
+    pub unsafe fn new() -> Self {
         Self {
             queue: SegQueue::new(),
             registry: FastMap::from_iter(
@@ -64,7 +70,7 @@ impl Control {
                     .into_iter()
                     .map(|command| (command.name, *command)),
             ),
-            inner: Mutex::new(InnerControl::new()),
+            inner: Mutex::new(unsafe { InnerControl::new() }),
         }
     }
 
@@ -91,7 +97,7 @@ impl Control {
         while let Some(query) = self.queue.pop()
             && i <= max
         {
-            let (name, args) = query.split_once(' ').unwrap_or((query.as_str(), ""));
+            let (name, args) = query.trim().split_once(' ').unwrap_or((query.as_str(), ""));
 
             match name {
                 "help" => self.log_help(),
@@ -133,6 +139,7 @@ impl Control {
 /// This provides functionality that requires mutability,
 /// therefore it's locked behind [Control::run].
 pub struct InnerControl {
+    terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
     buf: String,
     command: String,
 }
@@ -145,14 +152,30 @@ impl InnerControl {
     const STRING_BUF_CAPACITY: usize = 1024;
     const COMMAND_BUF_CAPACITY: usize = 16;
     const EXPANDED_TAB: &'static str = "    ";
-    const BACKGROUND: Rgb888 = Rgb888::new(10, 10, 15);
-    const FOREGROUND: Rgb888 = Rgb888::new(235, 235, 235);
+    const BACKGROUND: Color = Color::DarkerGray;
+    const FOREGROUND: Color = Color::BrighterGray;
 
     /// Create a new control instance.
-    pub fn new() -> Self {
-        Self {
-            buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
-            command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
+    pub unsafe fn new() -> Self {
+        unsafe {
+            Self {
+                terminal: SendSyncWrapper::new(
+                    Terminal::new(EmbeddedBackend::new(
+                        DISPLAY.get_mut(),
+                        EmbeddedBackendConfig {
+                            flush_callback: Box::new(|_| ()),
+                            font_regular: mousefood::fonts::MONO_9X18,
+                            font_bold: Some(mousefood::fonts::MONO_9X18_BOLD),
+                            font_italic: None,
+                            vertical_alignment: TerminalAlignment::Start,
+                            horizontal_alignment: TerminalAlignment::Start,
+                        },
+                    ))
+                    .expect("Failed to build terminal"),
+                ),
+                buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
+                command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
+            }
         }
     }
 
@@ -186,21 +209,33 @@ impl InnerControl {
     }
 
     fn render(&mut self) {
-        let display = unsafe { DISPLAY.get_mut() };
+        let screen = Rect::from(
+            self.terminal
+                .backend()
+                .size()
+                .expect("Failed to get backend size"),
+        );
 
-        TerminalBox::new(
-            &self.buf,
-            &self.command,
-            MonoTextStyleBuilder::new()
-                .text_color(Self::FOREGROUND)
-                .background_color(Self::BACKGROUND)
-                .font(&ascii::FONT_9X18)
-                .build(),
-        )
-        .draw(display)
-        .expect("Failed to draw control");
+        self.terminal
+            .draw(|frame| {
+                let block = Block::new()
+                    .borders(Borders::all())
+                    .border_type(BorderType::Rounded);
 
-        display.present();
+                let inner = block.inner(screen);
+
+                frame.render_widget(block, screen);
+
+                frame.render_widget(
+                    TerminalBox::new(
+                        &self.buf,
+                        &self.command,
+                        Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
+                    ),
+                    inner,
+                );
+            })
+            .expect("Failed to draw terminal");
     }
 }
 

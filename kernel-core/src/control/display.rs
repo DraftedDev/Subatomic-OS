@@ -1,6 +1,5 @@
 use crate::requests;
 use crate::sync::init::InitData;
-use alloc::vec::Vec;
 use embedded_graphics::Pixel;
 use embedded_graphics::geometry::Dimensions;
 use embedded_graphics::pixelcolor::{Rgb888, RgbColor};
@@ -16,7 +15,6 @@ pub static DISPLAY: InitData<Display> = InitData::uninit();
 pub struct Display {
     width: usize,
     height: usize,
-    buf: Vec<u8>,
     fb: &'static mut [u8],
 }
 
@@ -33,18 +31,9 @@ impl Display {
             core::slice::from_raw_parts_mut(fb.addr(), fb.pitch() as usize * fb.height() as usize)
         };
 
-        let mut buf = Vec::with_capacity(slice.len());
-
-        unsafe {
-            buf.set_len(slice.len());
-        }
-
-        buf.copy_from_slice(slice);
-
         Self {
             width: fb.width() as usize,
             height: fb.height() as usize,
-            buf,
             fb: slice,
         }
     }
@@ -59,11 +48,6 @@ impl Display {
         self.height
     }
 
-    /// Present the back-buffer to the framebuffer.
-    pub fn present(&mut self) {
-        self.fb.copy_from_slice(&self.buf);
-    }
-
     /// Set the pixel at `x` and `y` to the given color.
     pub fn set_pixel(&mut self, x: usize, y: usize, color: Rgb888) {
         if x >= self.width || y >= self.height {
@@ -73,10 +57,10 @@ impl Display {
         let pitch = self.width * 4;
         let offset = y * pitch + x * 4;
 
-        self.buf[offset] = color.b();
-        self.buf[offset + 1] = color.g();
-        self.buf[offset + 2] = color.r();
-        self.buf[offset + 3] = 0;
+        self.fb[offset] = color.b();
+        self.fb[offset + 1] = color.g();
+        self.fb[offset + 2] = color.r();
+        self.fb[offset + 3] = 0;
     }
 }
 

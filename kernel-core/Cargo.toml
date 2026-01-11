@@ -7,6 +7,8 @@ description = "Core kernel library of Subatomic OS."
 [dependencies]
 spin = { version = "0.10.0" }
 embedded-graphics = { version = "0.8.1", features = ["fixed_point"] }
+ratatui = { version = "0.30.0", default-features = false }
+mousefood = { git = "https://github.com/j-g00da/mousefood", rev = "693d82a" }
 ustyle = "0.1.1"
 heapless = "0.9.2"
 crossbeam-queue = { version = "0.3.12", default-features = false, features = ["alloc"] }
