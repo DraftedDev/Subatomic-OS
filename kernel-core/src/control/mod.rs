@@ -2,6 +2,7 @@ use crate::collections::FastMap;
 use crate::control::command::{Command, builtin};
 use crate::control::display::{DISPLAY, Display};
 use crate::control::input::{INPUT, InputControl};
+use crate::serial;
 use crate::sync::init::InitData;
 use crate::sync::mutex::Mutex;
 use crate::terminal::TerminalBox;
@@ -13,7 +14,7 @@ use core::fmt::Write;
 use crossbeam_queue::SegQueue;
 use embedded_graphics::pixelcolor::Rgb888;
 use mousefood::{EmbeddedBackend, EmbeddedBackendConfig, TerminalAlignment};
-use pc_keyboard::DecodedKey;
+use pc_keyboard::{DecodedKey, KeyCode};
 use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::layout::Rect;
@@ -142,6 +143,7 @@ pub struct InnerControl {
     terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
     buf: String,
     command: String,
+    scroll_offset: usize,
 }
 
 impl InnerControl {
@@ -175,6 +177,7 @@ impl InnerControl {
                 ),
                 buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
                 command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
+                scroll_offset: 0,
             }
         }
     }
@@ -202,6 +205,16 @@ impl InnerControl {
 
                     // Else => push to command
                     _ => self.command.push(ch),
+                },
+                DecodedKey::RawKey(code) => match code {
+                    // Scroll up => increment scroll offset
+                    KeyCode::ArrowUp => self.scroll_offset = self.scroll_offset.saturating_add(1),
+
+                    // Scroll down => decrement scroll offset
+                    KeyCode::ArrowDown => self.scroll_offset = self.scroll_offset.saturating_sub(1),
+
+                    // Else => do nothing
+                    _ => (),
                 },
                 _ => (),
             }
@@ -231,6 +244,7 @@ impl InnerControl {
                         &self.buf,
                         &self.command,
                         Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
+                        self.scroll_offset,
                     ),
                     inner,
                 );

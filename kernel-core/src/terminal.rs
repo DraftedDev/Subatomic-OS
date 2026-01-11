@@ -11,17 +11,19 @@ pub struct TerminalBox<'a> {
     buf: &'a str,
     command: &'a str,
     default: Style,
+    scroll_offset: usize,
 }
 
 impl<'a> TerminalBox<'a> {
     const PARSE_CAPACITY: usize = 128;
 
     /// Create a new [TerminalBox] from a buffer, command line and default style.
-    pub fn new(buf: &'a str, command: &'a str, default: Style) -> Self {
+    pub fn new(buf: &'a str, command: &'a str, default: Style, scroll_offset: usize) -> Self {
         Self {
             buf,
             command,
             default,
+            scroll_offset,
         }
     }
 
@@ -105,8 +107,9 @@ impl<'a> Widget for TerminalBox<'a> {
 
         lines.push(cmd);
 
-        // Scroll to bottom
-        let start = lines.len().saturating_sub(max_lines);
+        let max_scroll = lines.len().saturating_sub(max_lines);
+        let scroll = self.scroll_offset.min(max_scroll);
+        let start = max_scroll.saturating_sub(scroll);
 
         for (row, line) in lines[start..].iter().enumerate() {
             let y = area.y + row as u16;
@@ -117,9 +120,10 @@ impl<'a> Widget for TerminalBox<'a> {
                     break;
                 }
 
-                let cell = buf.cell_mut((x, y)).expect("Failed to get cell");
-                cell.set_char(*ch);
-                cell.set_style(Self::style_to_tui(style, &self.default));
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.set_char(*ch);
+                    cell.set_style(Self::style_to_tui(style, &self.default));
+                }
 
                 x += 1;
             }
