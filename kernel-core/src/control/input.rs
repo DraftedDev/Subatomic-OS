@@ -1,4 +1,4 @@
-use crate::serial;
+use crate::serial_println;
 use crate::sync::init::InitData;
 use crossbeam_queue::ArrayQueue;
 use pc_keyboard::DecodedKey;
@@ -26,7 +26,7 @@ impl InputControl {
     pub fn push(&self, key: DecodedKey) {
         self.keys.push(key).unwrap_or_else(|_| {
             // TODO: handle this better. can't do allocations, since we're in interrupt context
-            serial::println("Looks like the keyboard queue is full. Slow down please!");
+            serial_println!("Looks like the keyboard queue is full. Slow down please!");
         });
     }
 
