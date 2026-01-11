@@ -38,7 +38,7 @@ pub mod builtin {
         Command {
             name: "time",
             description: "Prints the current time to the control or sets the time zone.",
-            usage: "time <local|utc|set <zone|+hh:+mm:+ss>|list>",
+            usage: "time <help|local|utc|set <zone|+hh:+mm:+ss>|list>",
             run: time,
         },
         #[cfg(feature = "pci")]
@@ -125,7 +125,7 @@ pub mod builtin {
 
                 "help" => log::info!(
                     "Print out the time or set the system time zone.\n\
-            \tUsage: `time <local|utc|set <zone>|list>`\n\
+            \tUsage: `time <help|local|utc|set <zone>|list>`\n\
             \tExample to get local time: `time local`\n\
             \tExample to set the time zone to EST: `time set EST`\n\
             \tExample to set the time zone to 10:30:00: `time set +10:+30:+00`\n\
@@ -134,14 +134,15 @@ pub mod builtin {
 
                 _ => {
                     return Err(format!(
-                        "Invalid subcommand: {}. Usage: `time <local|utc|set <zone>|list>`.",
+                        "Invalid subcommand: {}. Usage: `time <help|local|utc|set <zone>|list>`.",
                         sub
                     ));
                 }
             }
         } else {
             return Err(
-                "No subcommand specified. Usage: `time <local|utc|set <zone>|list>`.".to_string(),
+                "No subcommand specified. Usage: `time <help|local|utc|set <zone>|list>`."
+                    .to_string(),
             );
         }
 
