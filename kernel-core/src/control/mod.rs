@@ -92,7 +92,7 @@ impl Control {
     }
 
     /// Lock the [InnerControl] and run the specified closure on it, then unlock it at last.
-    pub fn run(&self, func: impl FnOnce(&mut InnerControl)) {
+    pub fn run<R>(&self, func: impl FnOnce(&mut InnerControl) -> R) -> R {
         self.inner.run(func)
     }
 

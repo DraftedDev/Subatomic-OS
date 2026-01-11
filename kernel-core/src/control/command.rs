@@ -17,6 +17,7 @@ pub struct Command {
 
 /// Built-in commands.
 pub mod builtin {
+    use crate::control::CONTROL;
     use crate::control::command::Command;
     use crate::device::DeviceHub;
     use crate::info::KernelInfo;
@@ -24,6 +25,7 @@ pub mod builtin {
     use crate::{api, requests};
     use alloc::format;
     use alloc::string::{String, ToString};
+    use core::fmt::Write;
     use no_pico_args::Arguments;
     use time::UtcOffset;
 
@@ -40,6 +42,12 @@ pub mod builtin {
             description: "Prints the current time to the control or sets the time zone.",
             usage: "time <help|local|utc|set <zone|+hh:+mm:+ss>|list>",
             run: time,
+        },
+        Command {
+            name: "print",
+            description: "Prints a string to the control.",
+            usage: "print <string>",
+            run: print,
         },
         #[cfg(feature = "pci")]
         Command {
@@ -145,6 +153,15 @@ pub mod builtin {
                     .to_string(),
             );
         }
+
+        Ok(())
+    }
+
+    fn print(sub: String) -> Result<(), String> {
+        CONTROL
+            .get()
+            .run(|ctrl| writeln!(ctrl, "{}", sub))
+            .map_err(|err| err.to_string())?;
 
         Ok(())
     }
