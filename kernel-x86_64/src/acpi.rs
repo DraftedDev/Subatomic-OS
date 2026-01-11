@@ -77,6 +77,9 @@ pub fn read_hpet_counter() -> u64 {
 }
 
 /// Should only be called once after ACPI setup.
+///
+/// # Safety
+/// Should only be called once before any HPET use.
 pub unsafe fn enable_hpet() {
     let hpet_base_phys = HPET_INFO.get().base_address;
     let hpet_base =

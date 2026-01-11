@@ -66,13 +66,21 @@ pub const fn is_init() -> bool {
     *INIT.get()
 }
 
-pub fn alloc(layout: Layout) -> *mut u8 {
+/// See [core::alloc::GlobalAlloc::alloc].
+///
+/// # Safety
+/// The specified layout must be correct.
+pub unsafe fn alloc(layout: Layout) -> *mut u8 {
     ALLOCATOR
         .run(|talc| unsafe { talc.malloc(layout) })
         .map_or(ptr::null_mut(), |ptr| ptr.as_ptr())
 }
 
-pub fn alloc_zeroed(layout: Layout) -> *mut u8 {
+/// See [core::alloc::GlobalAlloc::alloc_zeroed].
+///
+/// # Safety
+/// The specified layout must be correct.
+pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
     // Copied from `GlobalAlloc`.
     ALLOCATOR.run(|talc| unsafe {
         let size = layout.size();
@@ -88,15 +96,21 @@ pub fn alloc_zeroed(layout: Layout) -> *mut u8 {
     })
 }
 
-pub fn dealloc(ptr: *mut u8, layout: Layout) {
+/// See [core::alloc::GlobalAlloc::dealloc].
+///
+/// # Safety
+/// The specified layout and pointer must be correct.
+pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
     ALLOCATOR.run(|talc| unsafe { talc.free(NonNull::new_unchecked(ptr), layout) })
 }
 
-pub fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+/// See [core::alloc::GlobalAlloc::realloc].
+///
+/// # Safety
+/// The specified layout, pointer and new size must be correct.
+pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
     // Copied from `Talck`.
     ALLOCATOR.run(|talc| unsafe {
-        const RELEASE_LOCK_ON_REALLOC_LIMIT: usize = 0x10000;
-
         let nn_ptr = NonNull::new_unchecked(ptr);
 
         match new_size.cmp(&layout.size()) {
@@ -112,15 +126,9 @@ pub fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
                     Err(_) => return ptr::null_mut(),
                 };
 
-                if layout.size() > RELEASE_LOCK_ON_REALLOC_LIMIT {
-                    allocation
-                        .as_ptr()
-                        .copy_from_nonoverlapping(ptr, layout.size());
-                } else {
-                    allocation
-                        .as_ptr()
-                        .copy_from_nonoverlapping(ptr, layout.size());
-                }
+                allocation
+                    .as_ptr()
+                    .copy_from_nonoverlapping(ptr, layout.size());
 
                 talc.free(nn_ptr, layout);
 

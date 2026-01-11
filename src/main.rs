@@ -44,7 +44,7 @@ unsafe extern "C" fn kernel_main() -> ! {
     }
 }
 
-unsafe fn init<'a>(filter: LevelFilter) {
+unsafe fn init(filter: LevelFilter) {
     #[cfg(target_arch = "x86_64")]
     let kernel = unsafe { api::set(kernel_x86_64::KERNEL_API) };
 

@@ -1,6 +1,8 @@
 #![feature(abi_x86_interrupt)]
 #![no_std]
 #![allow(static_mut_refs)]
+#![allow(clippy::new_without_default)]
+
 extern crate alloc;
 
 use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};

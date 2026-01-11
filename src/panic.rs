@@ -19,7 +19,7 @@ fn panic(info: &PanicInfo) -> ! {
             location.line(),
             location.column()
         );
-        log::error!("{}", msg.to_string());
+        log::error!("{}", msg);
     } else {
         log::error!("Kernel Panic at <location-not-available>");
         log::error!("{}", msg.as_str().unwrap_or("<HEAP NOT INITIALIZED>"));
