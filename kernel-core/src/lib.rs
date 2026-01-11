@@ -45,3 +45,6 @@ pub mod time;
 
 /// Contains external device infrastructure.
 pub mod device;
+
+/// Contains random data generation infrastructure.
+pub mod rand;
