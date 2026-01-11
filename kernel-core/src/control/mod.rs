@@ -35,6 +35,9 @@ pub static CONTROL: InitData<Control> = InitData::uninit();
 static mut INIT: bool = false;
 
 /// Initialize the global [InputControl] and the [Control] instances.
+///
+/// # Safety
+/// This must only be called once, before any global [CONTROL] use.
 pub unsafe fn init() {
     unsafe {
         INPUT.init(InputControl::new());
@@ -62,12 +65,15 @@ impl Control {
     const MAX_EXECUTED_COMMANDS: u8 = 4;
 
     /// Create a new control instance.
+    ///
+    /// # Safety
+    /// See [InnerControl::new].
     pub unsafe fn new() -> Self {
         Self {
             queue: SegQueue::new(),
             registry: FastMap::from_iter(
                 builtin::COMMANDS
-                    .into_iter()
+                    .iter()
                     .map(|command| (command.name, *command)),
             ),
             inner: Mutex::new(unsafe { InnerControl::new() }),
@@ -165,6 +171,9 @@ impl InnerControl {
     const FOREGROUND: Color = Color::BrighterGray;
 
     /// Create a new control instance.
+    ///
+    /// # Safety
+    /// This should only be called once, since it mutably uses the [DISPLAY] global.
     pub unsafe fn new() -> Self {
         unsafe {
             Self {

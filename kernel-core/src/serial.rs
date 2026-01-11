@@ -18,7 +18,7 @@ pub fn print(s: impl AsRef<[u8]>) {
 /// Prints a string to the serial console, followed by a newline.
 pub fn println(s: impl AsRef<[u8]>) {
     print(s);
-    print_byte('\n' as u8);
+    print_byte(b'\n');
 }
 
 /// A writer that writes everything to the serial console port.

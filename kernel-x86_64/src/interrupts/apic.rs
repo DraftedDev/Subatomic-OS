@@ -17,6 +17,10 @@ const MILLIS_PER_TICK: u32 = 10;
 static IO_APIC: InitData<IoApic> = InitData::uninit();
 static LOCAL_APIC: InitData<LocalApicWrapper> = InitData::uninit();
 
+/// Initialize the APIC.
+///
+/// # Safety
+/// Must only be called once before any APIC use.
 pub unsafe fn init() {
     // disable legacy PIC
     unsafe {
@@ -109,7 +113,7 @@ unsafe fn init_local_apic(lapic_addr: u64) {
     }
 }
 
-pub unsafe fn calibrate_apic_timer(lapic: &mut LocalApic) {
+unsafe fn calibrate_apic_timer(lapic: &mut LocalApic) {
     let hpet_start = read_hpet_counter();
 
     unsafe {
@@ -144,6 +148,10 @@ pub unsafe fn calibrate_apic_timer(lapic: &mut LocalApic) {
     }
 }
 
+/// Signals the end of the current interrupt to the [LOCAL_APIC].
+///
+/// # Safety
+/// Must be called within an interrupt handler after the work is finished.
 pub unsafe fn end_of_interrupt() {
     unsafe {
         LOCAL_APIC.get_mut().0.end_of_interrupt();

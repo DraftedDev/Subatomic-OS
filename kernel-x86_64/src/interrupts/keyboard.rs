@@ -35,10 +35,10 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: Interrupt
 
     // `KEYBOARD` and `PRODUCER` are only ever accessed here, so this is safe.
     unsafe {
-        if let Ok(Some(event)) = KEYBOARD.add_byte(scancode) {
-            if let Some(key) = KEYBOARD.process_keyevent(event) {
-                INPUT.get().push(key);
-            }
+        if let Ok(Some(event)) = KEYBOARD.add_byte(scancode)
+            && let Some(key) = KEYBOARD.process_keyevent(event)
+        {
+            INPUT.get().push(key);
         }
     }
 

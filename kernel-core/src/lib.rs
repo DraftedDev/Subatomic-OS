@@ -3,6 +3,7 @@
 #![no_std]
 #![allow(static_mut_refs)]
 #![warn(missing_docs)]
+#![allow(clippy::new_without_default)]
 
 extern crate alloc;
 

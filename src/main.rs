@@ -55,12 +55,12 @@ unsafe fn init<'a>(filter: LevelFilter) {
     log::info!("Checking limine base revision support...");
     assert!(BASE_REVISION.is_supported());
 
+    api::disable_interrupts();
+
     log::info!("Initializing kernel...");
     unsafe {
         (kernel.init)();
     }
-
-    api::disable_interrupts();
 
     log::info!("Initializing Display...");
     unsafe {

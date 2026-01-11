@@ -19,12 +19,10 @@ pub const fn kernel() -> KernelApi {
 
 /// Sets the global [KernelApi].
 ///
-/// Should only be called once right after booting.
+/// # Safety
+/// This must only be called exactly once before any API usage.
 pub const unsafe fn set(kernel: KernelApi) -> KernelApi {
-    unsafe {
-        let api = *API.init(kernel);
-        api
-    }
+    unsafe { *API.init(kernel) }
 }
 
 /// Get the global [KernelApiInfo].
@@ -120,31 +118,49 @@ pub struct PortApi {
 
 impl PortApi {
     /// Read a `u8` value from a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u8(&self, port: u16) -> u8 {
         unsafe { (self.read_u8)(port) }
     }
 
     /// Write a `u8` value to a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u8(&self, port: u16, value: u8) {
         unsafe { (self.write_u8)(port, value) }
     }
 
     /// Read a `u16` value from a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u16(&self, port: u16) -> u16 {
         unsafe { (self.read_u16)(port) }
     }
 
     /// Write a `u16` value to a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u16(&self, port: u16, value: u16) {
         unsafe { (self.write_u16)(port, value) }
     }
 
     /// Read a `u32` value from a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u32(&self, port: u16) -> u32 {
         unsafe { (self.read_u32)(port) }
     }
 
     /// Write a `u32` value to a port.
+    ///
+    /// # Safety
+    /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u32(&self, port: u16, value: u32) {
         unsafe { (self.write_u32)(port, value) }
     }
@@ -176,21 +192,33 @@ impl MemoryApi {
     }
 
     /// See [core::alloc::GlobalAlloc::alloc].
+    ///
+    /// # Safety
+    /// The specified layout must be correct.
     pub unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         unsafe { (self.alloc)(layout) }
     }
 
     /// See [core::alloc::GlobalAlloc::realloc].
+    ///
+    /// # Safety
+    /// The specified layout must be correct.
     pub unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         unsafe { (self.alloc_zeroed)(layout) }
     }
 
     /// See [core::alloc::GlobalAlloc::dealloc].
+    ///
+    /// # Safety
+    /// The specified layout and pointer must be correct.
     pub unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         unsafe { (self.dealloc)(ptr, layout) }
     }
 
     /// See [core::alloc::GlobalAlloc::realloc].
+    ///
+    /// # Safety
+    /// The specified pointer, layout and new size must be correct.
     pub unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         unsafe { (self.realloc)(ptr, layout, new_size) }
     }

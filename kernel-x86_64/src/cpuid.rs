@@ -3,6 +3,10 @@ use raw_cpuid::{CpuId, CpuIdReaderNative};
 
 static CPUID: InitData<CpuId<CpuIdReaderNative>> = InitData::uninit();
 
+/// Initialize the global [CPUID].
+///
+/// # Safety
+/// This must only be called once before any [CPUID] usage.
 pub unsafe fn init() {
     unsafe {
         CPUID.init(CpuId::new());

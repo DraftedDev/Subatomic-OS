@@ -23,9 +23,9 @@ impl<T, M> InitData<T, M> {
     /// Initialize the data.
     ///
     /// # Safety
-    ///
     /// The caller must ensure that this is called before any access via [InitData::get].
     /// Should be called inside kernel setup functions.
+    #[allow(clippy::mut_from_ref)]
     pub const unsafe fn init(&self, data: T) -> &mut T {
         unsafe {
             let inner = &mut *self.data.get();
@@ -47,6 +47,7 @@ impl<T, M> InitData<T, M> {
     /// # Safety
     ///
     /// This is highly unsafe and should only be used in edge-cases.
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut(&self) -> &mut T {
         unsafe { (&mut *self.data.get()).assume_init_mut() }
     }

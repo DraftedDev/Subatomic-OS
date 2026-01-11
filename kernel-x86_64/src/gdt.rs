@@ -29,6 +29,10 @@ pub fn get_tss<'a>() -> &'a TaskStateSegment {
     TSS.get()
 }
 
+/// Initialize the global descriptor table and task state segment.
+///
+/// # Safety
+/// Must only be called once before any [GLOBAL_DESCRIPTOR] or [TSS] use.
 pub unsafe fn init() {
     unsafe {
         TSS.init(build_tss());
@@ -72,8 +76,8 @@ unsafe fn build_tss() -> TaskStateSegment {
         static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
         let stack_start = VirtAddr::from_ptr(addr_of!(STACK));
-        let stack_end = stack_start + STACK_SIZE as u64;
-        stack_end
+
+        stack_start + STACK_SIZE as u64
     };
 
     tss.privilege_stack_table[0] = {
@@ -81,8 +85,8 @@ unsafe fn build_tss() -> TaskStateSegment {
         static mut RING0_STACK: [u8; RING0_STACK_SIZE] = [0; RING0_STACK_SIZE];
 
         let stack_start = VirtAddr::from_ptr(addr_of!(RING0_STACK));
-        let stack_end = stack_start + RING0_STACK_SIZE as u64;
-        stack_end
+
+        stack_start + RING0_STACK_SIZE as u64
     };
 
     tss.iomap_base = (size_of::<TaskStateSegment>() - 1) as u16;

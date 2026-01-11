@@ -4,6 +4,10 @@ use x86_64::structures::idt::InterruptDescriptorTable;
 
 static IDT: InitData<InterruptDescriptorTable> = InitData::uninit();
 
+/// Initialize the Interrupt Descriptor Table.
+///
+/// # Safety
+/// Must only be called once before any [IDT] use.
 pub unsafe fn init() {
     let mut idt: InterruptDescriptorTable = InterruptDescriptorTable::new();
 

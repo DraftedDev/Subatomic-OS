@@ -6,6 +6,12 @@ use kernel_core::device::{DeviceHub, pci};
 use x86_64::PhysAddr;
 use x86_64::structures::paging::PageTableFlags;
 
+/// Initialize the kernel.
+///
+/// The global control and display are not initialized at this point.
+///
+/// # Safety
+/// Must only be called once before any initialization resources are used.
 pub unsafe fn init() {
     unsafe {
         log::info!("Initializing CpuId...");
@@ -31,6 +37,12 @@ pub unsafe fn init() {
     }
 }
 
+/// Sets up the kernel after initialization.
+///
+/// The global control and display are initialized at this point.
+///
+/// # Safety
+/// Must only be called once before any of the setup resources are used.
 pub unsafe fn setup() {
     unsafe {
         log::info!("Initializing Advanced Configuration and Power Interface...");

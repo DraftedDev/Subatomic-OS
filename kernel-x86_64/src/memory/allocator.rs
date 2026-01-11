@@ -18,6 +18,10 @@ static ALLOCATOR: Mutex<Talc<OutOfMemory>> = Mutex::new(Talc::new(OutOfMemory));
 
 static INIT: InitData<bool> = InitData::uninit();
 
+/// Initialize the allocator.
+///
+/// # Safety
+/// Must only be called once before any allocations.
 pub unsafe fn init() {
     FRAME_ALLOCATOR.run(|frame_alloc| {
         MAPPER.get().run_mut(|mapper| {

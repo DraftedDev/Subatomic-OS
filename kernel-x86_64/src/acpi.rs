@@ -20,6 +20,10 @@ pub static ACPI: InitData<AcpiTables> = InitData::uninit();
 pub static HPET_INFO: InitData<HpetInfo> = InitData::uninit();
 pub static HPET_CLOCK_TICK_UNIT: InitData<u64> = InitData::uninit();
 
+/// Initialize the ACPI.
+///
+/// # Safety
+/// Must only be called once before any ACPI use.
 pub unsafe fn init() {
     unsafe {
         let rsdp = requests::rsdp().address();
@@ -72,6 +76,7 @@ pub fn read_hpet_counter() -> u64 {
     unsafe { ((hpet_base + HPET_MAIN_COUNTER_OFFSET) as *const u64).read_volatile() }
 }
 
+/// Should only be called once after ACPI setup.
 pub unsafe fn enable_hpet() {
     let hpet_base_phys = HPET_INFO.get().base_address;
     let hpet_base =
@@ -85,6 +90,10 @@ pub unsafe fn enable_hpet() {
     }
 }
 
+/// Disable the HPET.
+///
+/// # Safety
+/// Should only be called once after [enable_hpet].
 pub unsafe fn disable_hpet() {
     let hpet_base_phys = HPET_INFO.get().base_address;
     let hpet_base =
@@ -125,7 +134,7 @@ impl Handler for AcpiHandler {
             virtual_start: unsafe { NonNull::new_unchecked(mapped.as_mut_ptr()) },
             region_length: size,
             mapped_length: (size + 0xFFF) & !0xFFF, // rounded to full pages
-            handler: self.clone(),
+            handler: AcpiHandler,
         }
     }
 

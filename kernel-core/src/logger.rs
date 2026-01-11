@@ -7,6 +7,9 @@ use log::{Level, LevelFilter, Log, Metadata, Record};
 use ustyle::{Color, Style};
 
 /// Initialize the logger with the given filter.
+///
+/// # Safety
+/// The logger can only be initialized once.
 pub unsafe fn init(max_level: LevelFilter) {
     unsafe {
         log::set_max_level_racy(max_level);
@@ -75,7 +78,7 @@ impl Logger {
             }
         }
 
-        write!(writer, "\n")?;
+        writeln!(writer)?;
 
         Ok(())
     }
@@ -90,7 +93,7 @@ impl Log for Logger {
         let level = record.level();
         let args = record.args();
 
-        write!(&mut SerialWriter, "[{}] {args}\n", level_to_str(level))
+        writeln!(&mut SerialWriter, "[{}] {args}", level_to_str(level))
             .expect("Failed to write log to serial");
 
         if control::is_init() {
