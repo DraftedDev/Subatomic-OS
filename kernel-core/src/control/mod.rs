@@ -2,7 +2,6 @@ use crate::collections::FastMap;
 use crate::control::command::{Command, builtin};
 use crate::control::display::{DISPLAY, Display};
 use crate::control::input::{INPUT, InputControl};
-use crate::serial;
 use crate::sync::init::InitData;
 use crate::sync::mutex::Mutex;
 use crate::terminal::TerminalBox;
@@ -120,18 +119,26 @@ impl Control {
 
     /// Log the help message to the control.
     pub fn log_help(&self) {
-        let mut help = String::with_capacity(self.registry.len() * 32);
+        const HELP_START: &str = "Control Help:\n\n\
+            This is the control, the main interface to the kernel.\n\
+            You can think of this as an overarching root shell.\n\
+            Use Arrow Up ↑ and Arrow Down ↓ to scroll through the terminal.\n\n\
+            Available Commands:\n\n";
+
+        let mut help = String::with_capacity(self.registry.len() * 32 + HELP_START.len());
+
+        help.push_str(HELP_START);
 
         for command in self.registry.values() {
             help.push_str(&format!(
-                "\n{}:\n\
+                "{}:\n\
 \tDescription: {}\n\
 \tUsage: {}\n",
                 command.name, command.description, command.usage
             ));
         }
 
-        log::info!("Command-Line Help:\n{help}");
+        log::info!("{help}");
     }
 }
 
@@ -206,6 +213,7 @@ impl InnerControl {
                     // Else => push to command
                     _ => self.command.push(ch),
                 },
+
                 DecodedKey::RawKey(code) => match code {
                     // Scroll up => increment scroll offset
                     KeyCode::ArrowUp => self.scroll_offset = self.scroll_offset.saturating_add(1),
@@ -216,7 +224,6 @@ impl InnerControl {
                     // Else => do nothing
                     _ => (),
                 },
-                _ => (),
             }
         }
     }
@@ -237,8 +244,6 @@ impl InnerControl {
 
                 let inner = block.inner(screen);
 
-                frame.render_widget(block, screen);
-
                 frame.render_widget(
                     TerminalBox::new(
                         &self.buf,
@@ -248,6 +253,8 @@ impl InnerControl {
                     ),
                     inner,
                 );
+
+                frame.render_widget(block, screen);
             })
             .expect("Failed to draw terminal");
     }

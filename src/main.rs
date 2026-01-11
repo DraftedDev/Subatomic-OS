@@ -106,6 +106,7 @@ fn print_intro() {
                    @@    @
                       @@
 
+Type 'help' for help.
 "#
     );
 }
