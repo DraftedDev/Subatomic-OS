@@ -18,6 +18,8 @@ pub trait DeviceHub {
     type Device: Device<DeviceId = Self::DeviceId>;
     /// The device id of the [Self::Device] this hub manages.
     type DeviceId;
+    /// The driver type that works with this hub and device type.
+    type Driver;
     /// The error type that can be produced by various operations.
     type Error;
 
@@ -29,4 +31,16 @@ pub trait DeviceHub {
 
     /// Get a device by its ID.
     fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error>;
+
+    /// Get the device driver by the device ID.
+    fn get_driver(&self, id: &Self::DeviceId) -> Result<&Self::Driver, Self::Error>;
+
+    /// Installs the given driver into the specified device.
+    ///
+    /// Returns the old driver or an error.
+    fn install(
+        &mut self,
+        driver: Self::Driver,
+        id: &Self::DeviceId,
+    ) -> Result<Self::Driver, Self::Error>;
 }

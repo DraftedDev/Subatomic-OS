@@ -9,6 +9,7 @@ use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
 use crate::sync::init::InitData;
 use crate::sync::rwlock::RwLock;
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use pci_types::{
     CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType, Interface,
@@ -108,7 +109,7 @@ impl Device for PciDevice {
 }
 
 pub struct PciDeviceHub {
-    devices: FastMap<u32, PciDevice>,
+    devices: FastMap<u32, (PciDevice, Box<dyn PciDriver>)>,
     config: PciConfig,
 }
 
@@ -142,7 +143,7 @@ impl PciDeviceHub {
             | ((bus as u32) << 16)
             | ((device as u32) << 11)
             | ((function as u32) << 8);
-        self.devices.insert(device_id, dev);
+        self.devices.insert(device_id, (dev, Box::new(NoopDriver)));
 
         Ok(())
     }
@@ -179,6 +180,7 @@ impl PciDeviceHub {
 impl DeviceHub for PciDeviceHub {
     type Device = PciDevice;
     type DeviceId = u32;
+    type Driver = Box<dyn PciDriver>;
     type Error = PciError;
 
     fn init(&mut self) -> Result<(), Self::Error> {
@@ -198,6 +200,38 @@ impl DeviceHub for PciDeviceHub {
     }
 
     fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error> {
-        self.devices.get(id).ok_or(PciError::DeviceNotFound)
+        self.devices
+            .get(id)
+            .ok_or(PciError::DeviceNotFound)
+            .map(|(dev, _)| dev)
     }
+
+    fn get_driver(&self, id: &Self::DeviceId) -> Result<&Self::Driver, Self::Error> {
+        self.devices
+            .get(id)
+            .ok_or(PciError::DeviceNotFound)
+            .map(|(_, driver)| driver)
+    }
+
+    fn install(
+        &mut self,
+        driver: Self::Driver,
+        id: &Self::DeviceId,
+    ) -> Result<Self::Driver, Self::Error> {
+        let (dev, old_driver) = self.devices.remove(id).ok_or(PciError::DeviceNotFound)?;
+
+        self.devices.insert(*id, (dev, driver));
+
+        Ok(old_driver)
+    }
+}
+
+pub trait PciDriver: Send + Sync + 'static {
+    fn init(&self, device: &PciDevice);
+}
+
+struct NoopDriver;
+
+impl PciDriver for NoopDriver {
+    fn init(&self, _: &PciDevice) {}
 }
