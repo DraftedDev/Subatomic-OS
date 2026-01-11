@@ -7,6 +7,8 @@ pub enum PciError {
     InitFailed,
     /// The requested device address does not belong to a registered device.
     DeviceNotFound,
+    /// The driver is already registered.
+    DriverAlreadyRegistered,
 }
 
 impl Display for PciError {
@@ -14,6 +16,7 @@ impl Display for PciError {
         match self {
             PciError::InitFailed => write!(f, "Failed to initialize PCI device hub"),
             PciError::DeviceNotFound => write!(f, "Device not found"),
+            PciError::DriverAlreadyRegistered => write!(f, "Driver already registered"),
         }
     }
 }

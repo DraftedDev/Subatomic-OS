@@ -132,7 +132,8 @@ impl Device for PciDevice {
 
 /// The device hub to control all PCI devices.
 pub struct PciDeviceHub {
-    devices: FastMap<u32, (PciDevice, Box<dyn PciDriver>)>,
+    devices: FastMap<u32, PciDevice>,
+    drivers: FastMap<&'static str, Box<dyn PciDriver>>,
     config: PciConfig,
 }
 
@@ -141,6 +142,7 @@ impl PciDeviceHub {
     pub fn new(ecam_base: usize) -> Self {
         Self {
             devices: FastMap::default(),
+            drivers: FastMap::default(),
             config: PciConfig::new(ecam_base),
         }
     }
@@ -167,7 +169,7 @@ impl PciDeviceHub {
             | ((bus as u32) << 16)
             | ((device as u32) << 11)
             | ((function as u32) << 8);
-        self.devices.insert(device_id, (dev, Box::new(NoopDriver)));
+        self.devices.insert(device_id, dev);
 
         Ok(())
     }
@@ -224,31 +226,22 @@ impl DeviceHub for PciDeviceHub {
     }
 
     fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error> {
-        self.devices
-            .get(id)
-            .ok_or(PciError::DeviceNotFound)
-            .map(|(dev, _)| dev)
+        self.devices.get(id).ok_or(PciError::DeviceNotFound)
     }
 
-    fn get_driver(&self, id: &Self::DeviceId) -> Result<&Self::Driver, Self::Error> {
-        self.devices
-            .get(id)
-            .ok_or(PciError::DeviceNotFound)
-            .map(|(_, driver)| driver)
-    }
+    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error> {
+        let driver = self
+            .drivers
+            .insert(driver.name(), driver)
+            .ok_or(PciError::DriverAlreadyRegistered)?;
 
-    fn install(
-        &mut self,
-        driver: Self::Driver,
-        id: &Self::DeviceId,
-    ) -> Result<Self::Driver, Self::Error> {
-        let (dev, old_driver) = self.devices.remove(id).ok_or(PciError::DeviceNotFound)?;
+        for device in self.devices.values() {
+            if driver.should_bind(device) {
+                driver.init(device);
+            }
+        }
 
-        driver.init(&dev);
-
-        self.devices.insert(*id, (dev, driver));
-
-        Ok(old_driver)
+        Ok(())
     }
 }
 
@@ -256,15 +249,17 @@ impl DeviceHub for PciDeviceHub {
 ///
 /// Drivers should implement any message signaling and other functions by themselves.
 pub trait PciDriver: Send + Sync + 'static {
-    /// Initialize the device driver.
+    /// A unique name for the driver.
+    fn name(&self) -> &'static str;
+
+    /// Returns if this driver should be bound to the given device.
     ///
-    /// Called when the driver is installed via [PciDeviceHub::install].
+    /// This is where drivers should check device capabilities and other properties.
+    fn should_bind(&self, device: &PciDevice) -> bool;
+
+    /// Initialize the device driver.
     fn init(&self, device: &PciDevice);
-}
 
-/// A no-op driver that does nothing.
-pub struct NoopDriver;
-
-impl PciDriver for NoopDriver {
-    fn init(&self, _: &PciDevice) {}
+    /// Destroys the device driver.
+    fn destroy(&self, device: &PciDevice);
 }

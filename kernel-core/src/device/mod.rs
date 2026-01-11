@@ -32,15 +32,10 @@ pub trait DeviceHub {
     /// Get a device by its ID.
     fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error>;
 
-    /// Get the device driver by the device ID.
-    fn get_driver(&self, id: &Self::DeviceId) -> Result<&Self::Driver, Self::Error>;
-
-    /// Installs the given driver into the specified device.
+    /// Registers a driver.
     ///
-    /// Returns the old driver or an error.
-    fn install(
-        &mut self,
-        driver: Self::Driver,
-        id: &Self::DeviceId,
-    ) -> Result<Self::Driver, Self::Error>;
+    /// This should check if the driver can be bound to any device.
+    ///
+    /// Must be called after [DeviceHub::init].
+    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error>;
 }
