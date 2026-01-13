@@ -21,8 +21,10 @@ pub mod builtin {
     use crate::control::command::Command;
     use crate::device::DeviceHub;
     use crate::info::KernelInfo;
+    use crate::rand::{ChaCha20Rng, Pcg32Rng, Rng, Xoshiro256};
     use crate::time::TimeZone;
     use crate::{api, requests};
+    use alloc::boxed::Box;
     use alloc::format;
     use alloc::string::{String, ToString};
     use core::fmt::Write;
@@ -55,6 +57,12 @@ pub mod builtin {
             description: "Logs a message to the control.",
             usage: "log <message>",
             run: log,
+        },
+        Command {
+            name: "rand",
+            description: "Generate random data.",
+            usage: "rand [--quality] [--algo <pcg32|xoshiro256|chacha20>] <seed|int|uint|float|bool>",
+            run: rand,
         },
         #[cfg(feature = "pci")]
         Command {
@@ -186,6 +194,65 @@ pub mod builtin {
         let rest = args.finish().join(" ");
 
         log::log!(level, "{}", rest);
+
+        Ok(())
+    }
+
+    fn rand(sub: String) -> Result<(), String> {
+        let mut args = Arguments::from_string(sub);
+
+        let quality = args.contains("--quality");
+
+        let algo: String = args
+            .opt_value_from_str("--algo")
+            .map_err(|err| err.to_string())?
+            .unwrap_or("pcg32".to_string());
+
+        let ty = args
+            .subcommand()
+            .ok_or("No type specified. Command usage: `rand [--quality] [--algo <pcg32>] <seed|int|uint|float|bool>`.")?;
+
+        // TODO: add argument to specify bounds
+        macro_rules! gen_rand {
+            ($rng:expr, $ty:expr) => {
+                Box::new(|| {
+                    let mut result = Ok(());
+                    match $ty {
+                        "int" => log::info!("{}", $rng.int(i32::MIN..=i32::MAX)),
+                        "uint" => log::info!("{}", $rng.uint(u32::MIN..=u32::MAX)),
+                        "float" => log::info!("{}", $rng.float()),
+                        "bool" => log::info!("{}", $rng.bool()),
+                        "seed" => log::info!("{}", api::seed(quality)),
+
+                        _ => result = Err(format!(
+                            "Invalid type: {}. Available: 'seed', 'int', 'uint', 'float' and 'bool'.",
+                            $ty
+                        )),
+                    }
+
+                    return result;
+                })
+            }
+        }
+
+        let pcg32: Box<dyn Fn() -> Result<(), String>> =
+            gen_rand!(Pcg32Rng::new(quality), ty.as_str());
+
+        let xoshiro256: Box<dyn Fn() -> Result<(), String>> =
+            gen_rand!(Xoshiro256::new(quality), ty.as_str());
+
+        let chacha20: Box<dyn Fn() -> Result<(), String>> =
+            gen_rand!(ChaCha20Rng::new(quality), ty.as_str());
+
+        match algo.as_str() {
+            "pcg32" => pcg32(),
+            "xoshiro256" => xoshiro256(),
+            "chacha20" => chacha20(),
+            _ => Err(format!(
+                "Invalid algorithm: {}. Available: 'pcg32', 'xoshiro256' and 'chacha20'.",
+                algo
+            )),
+        }?;
 
         Ok(())
     }

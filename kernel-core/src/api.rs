@@ -60,6 +60,14 @@ pub fn enable_interrupts() {
     (kernel().enable_interrupts)();
 }
 
+/// Get a seed for the random number generator.
+///
+/// The `quality` parameter specified if the seed should be high quality.
+/// High quality seeds are more secure, but are usually slower to generate.
+pub fn seed(quality: bool) -> u64 {
+    (kernel().seed)(quality)
+}
+
 /// Executes the given function without interrupts.
 pub fn without_interrupts<R, F: FnOnce() -> R>(f: F) -> R {
     disable_interrupts();
@@ -89,6 +97,8 @@ pub struct KernelApi {
     pub disable_interrupts: fn(),
     /// Enable interrupts on the system.
     pub enable_interrupts: fn(),
+    /// Generate a seed for the random number generator.
+    pub seed: fn(quality: bool) -> u64,
     /// The [PortApi] for port communication.
     pub port: PortApi,
     /// The [MemoryApi] for memory management.

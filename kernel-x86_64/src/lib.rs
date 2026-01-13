@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use kernel_core::api;
 use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
 use kernel_core::info::KernelApiInfo;
 
@@ -27,6 +28,7 @@ pub const KERNEL_API: KernelApi = KernelApi {
     halt: x86_64::instructions::hlt,
     disable_interrupts: x86_64::instructions::interrupts::disable,
     enable_interrupts: x86_64::instructions::interrupts::enable,
+    seed: |quality| if quality { seed_quality() } else { seed_fast() },
     port: PortApi {
         read_u8: port::read_u8,
         write_u8: port::write_u8,
@@ -48,3 +50,24 @@ pub const KERNEL_API: KernelApi = KernelApi {
         set_offset: time::set_offset,
     },
 };
+
+fn seed_quality() -> u64 {
+    let tsc = unsafe { core::arch::x86_64::_rdtsc() };
+    let rip = x86_64::instructions::read_rip().as_u64();
+
+    // TODO: use nanosecond (implement first)
+    let time = api::time().read_local().second() as u64;
+
+    // Mix with SplitMix64
+    let mut x = tsc ^ rip ^ time;
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D049BB133111EB);
+    x ^ (x >> 31)
+}
+
+fn seed_fast() -> u64 {
+    let tsc = unsafe { core::arch::x86_64::_rdtsc() };
+    let rip = x86_64::instructions::read_rip().as_u64();
+
+    (tsc ^ rip).wrapping_mul(0x9E3779B97F4A7C15)
+}
