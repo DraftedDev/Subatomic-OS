@@ -59,6 +59,12 @@ pub mod builtin {
             run: log,
         },
         Command {
+            name: "log",
+            description: "Logs a message to the control with a given level and optionally sets the logging level.",
+            usage: "log --level <level> [--set-level] <message>",
+            run: log,
+        },
+        Command {
             name: "rand",
             description: "Generate random data.",
             usage: "rand [--quality] [--algo <pcg32|xoshiro256|chacha20>] <seed|int|uint|float|bool>",
@@ -190,6 +196,14 @@ pub mod builtin {
             }
             _ => err.to_string(),
         })?;
+
+        let set_level = args.contains("--set-level");
+
+        if set_level {
+            unsafe {
+                log::set_max_level_racy(level.to_level_filter());
+            }
+        }
 
         let rest = args.finish().join(" ");
 
