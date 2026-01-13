@@ -18,8 +18,12 @@ pub mod panic;
 #[unsafe(no_mangle)]
 unsafe extern "C" fn kernel_main() -> ! {
     unsafe {
-        // TODO: config this
-        init(LevelFilter::Trace)
+        init(
+            option_env!("LOG_LEVEL")
+                .unwrap_or("info")
+                .parse()
+                .expect("Invalid log level"),
+        )
     };
 
     let info = KernelInfo::fetch();
