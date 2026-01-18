@@ -10,6 +10,7 @@ use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
 use kernel_core::info::KernelApiInfo;
 
 pub mod acpi;
+pub mod commands;
 pub mod cpuid;
 pub mod gdt;
 pub mod init;

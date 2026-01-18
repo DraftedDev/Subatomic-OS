@@ -45,6 +45,15 @@ pub unsafe fn init() {
 /// Must only be called once before any of the setup resources are used.
 pub unsafe fn setup() {
     unsafe {
+        {
+            log::info!("Registering architecture specific commands...");
+            let control = kernel_core::control::CONTROL.get_mut();
+
+            for command in crate::commands::COMMANDS {
+                control.register(command);
+            }
+        }
+
         log::info!("Initializing Advanced Configuration and Power Interface...");
         crate::acpi::init();
 

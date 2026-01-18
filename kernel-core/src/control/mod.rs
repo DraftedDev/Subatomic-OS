@@ -80,6 +80,13 @@ impl Control {
         }
     }
 
+    /// Registers a command for the control.
+    ///
+    /// Can only be used, by obtaining an **unsafe** mutable reference to the global [CONTROL].
+    pub fn register(&mut self, command: Command) {
+        self.registry.insert(command.name, command);
+    }
+
     /// Update the control.
     pub fn update(&self) {
         self.run(|inner| {
