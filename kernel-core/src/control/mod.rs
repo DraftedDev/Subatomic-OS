@@ -210,15 +210,6 @@ impl InnerControl {
         }
     }
 
-    fn parse_temp_buf(&mut self) {
-        let string = self.string_buf.drain(..).collect::<String>();
-
-        let spans =
-            Span::decode_capacity(&string, Self::PARSE_CAPACITY).expect("Failed to parse spans");
-
-        self.buf.extend(spans);
-    }
-
     fn handle_input(&mut self, queue: &SegQueue<String>) {
         let input = INPUT.get();
         while let Some(key) = input.pop() {
@@ -260,8 +251,14 @@ impl InnerControl {
     }
 
     fn render(&mut self) {
+        // Parse temp buffer if not empty
         if !self.string_buf.is_empty() {
-            self.parse_temp_buf();
+            let string = self.string_buf.drain(..).collect::<String>();
+
+            let spans = Span::decode_capacity(&string, Self::PARSE_CAPACITY)
+                .expect("Failed to parse spans");
+
+            self.buf.extend(spans);
         }
 
         let screen = Rect::from(
