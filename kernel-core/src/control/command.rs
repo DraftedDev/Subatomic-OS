@@ -35,6 +35,12 @@ pub mod builtin {
     /// Built-in commands.
     pub const COMMANDS: &[Command] = &[
         Command {
+            name: "clear",
+            description: "Clears the terminal buffer and screen.",
+            usage: "clear",
+            run: clear,
+        },
+        Command {
             name: "sys-info",
             description: "Prints information about the system to the control.",
             usage: "sys-info",
@@ -78,6 +84,15 @@ pub mod builtin {
             run: pci,
         },
     ];
+
+    fn clear(_: String) -> Result<(), String> {
+        CONTROL.get().run(|ctrl| {
+            ctrl.buf.clear();
+            ctrl.string_buf.clear();
+        });
+
+        Ok(())
+    }
 
     fn sys_info(_: String) -> Result<(), String> {
         let info = KernelInfo::fetch();
