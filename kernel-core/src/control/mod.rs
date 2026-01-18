@@ -301,7 +301,7 @@ impl InnerControl {
 
                 frame.render_widget(
                     TerminalBox::new(
-                        self.lines.clone(),
+                        &self.lines,
                         &self.command,
                         Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
                         self.scroll_offset,

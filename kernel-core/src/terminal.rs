@@ -8,7 +8,7 @@ use ustyle::{Attributes, Color, Style};
 
 /// A terminal-style text box widget.
 pub struct TerminalBox<'a> {
-    buf: Vec<Vec<(char, Style)>>,
+    buf: &'a [Vec<(char, Style)>],
     command: &'a str,
     default: Style,
     scroll_offset: usize,
@@ -17,7 +17,7 @@ pub struct TerminalBox<'a> {
 impl<'a> TerminalBox<'a> {
     /// Create a new [TerminalBox] from a buffer, command line and default style.
     pub fn new(
-        buf: Vec<Vec<(char, Style)>>,
+        buf: &'a [Vec<(char, Style)>],
         command: &'a str,
         default: Style,
         scroll_offset: usize,
@@ -50,57 +50,66 @@ impl<'a> TerminalBox<'a> {
             .fg(TuiColor::from(fg))
             .bg(TuiColor::from(bg))
     }
+
+    fn build_command_line(command: &str, default: Style) -> Vec<(char, Style)> {
+        // TODO: Don't create extra Vec for command line
+        let mut buf = Vec::with_capacity(command.len() + 3);
+
+        buf.push((InnerControl::COMMAND_PREFIX, default));
+        buf.push((' ', default));
+
+        for ch in command.chars() {
+            buf.push((ch, default));
+        }
+
+        buf.push((
+            InnerControl::COMMAND_SUFFIX,
+            Style::new(
+                Color::BrighterGray,
+                Color::BrighterGray,
+                Attributes::empty(),
+            ),
+        ));
+
+        buf
+    }
 }
 
 impl<'a> Widget for TerminalBox<'a> {
-    fn render(mut self, area: Rect, buf: &mut Buffer) {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         buf.reset();
 
-        // Build visible lines only
         let max_lines = area.height as usize;
+        let total_lines = self.buf.len() + 1; // + command line
 
-        // Append command line
-        let cmd = {
-            let mut buf = Vec::with_capacity(
-                self.command.len() + 3, // prefix + suffix + space
-            );
-
-            buf.push((InnerControl::COMMAND_PREFIX, self.default));
-            buf.push((' ', self.default));
-
-            for ch in self.command.chars() {
-                buf.push((ch, self.default));
-            }
-
-            buf.push((
-                InnerControl::COMMAND_SUFFIX,
-                Style::new(
-                    Color::BrighterGray,
-                    Color::BrighterGray,
-                    Attributes::empty(),
-                ),
-            ));
-
-            buf
-        };
-
-        self.buf.push(cmd);
-
-        let max_scroll = self.buf.len().saturating_sub(max_lines);
+        let max_scroll = total_lines.saturating_sub(max_lines);
         let scroll = self.scroll_offset.min(max_scroll);
         let start = max_scroll.saturating_sub(scroll);
 
-        for (row, line) in self.buf[start..].iter().enumerate() {
-            let mut y = area.y + row as u16;
+        for row in 0..max_lines {
+            let line_idx = start + row;
+            if line_idx >= total_lines {
+                break;
+            }
+
+            let y = area.y + row as u16;
             let mut x = area.x;
+
+            let line: &[(char, Style)];
+
+            // Normal buffer line
+            let cmd_storage;
+            if line_idx < self.buf.len() {
+                line = &self.buf[line_idx];
+            } else {
+                // Command line (built on the fly, no cloning of scrollback)
+                cmd_storage = Self::build_command_line(self.command, self.default);
+                line = &cmd_storage;
+            }
 
             for (ch, style) in line {
                 if x >= area.right() {
-                    x = area.x;
-                    y += 1;
-                    if y >= area.bottom() {
-                        break;
-                    }
+                    break;
                 }
 
                 let cell = buf.cell_mut((x, y)).unwrap();
