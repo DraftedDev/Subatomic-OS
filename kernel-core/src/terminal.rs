@@ -8,17 +8,15 @@ use ustyle::{Attributes, Color, Span, Style};
 
 /// A terminal-style text box widget.
 pub struct TerminalBox<'a> {
-    buf: &'a str,
+    buf: &'a [Span],
     command: &'a str,
     default: Style,
     scroll_offset: usize,
 }
 
 impl<'a> TerminalBox<'a> {
-    const PARSE_CAPACITY: usize = 128;
-
     /// Create a new [TerminalBox] from a buffer, command line and default style.
-    pub fn new(buf: &'a str, command: &'a str, default: Style, scroll_offset: usize) -> Self {
+    pub fn new(buf: &'a [Span], command: &'a str, default: Style, scroll_offset: usize) -> Self {
         Self {
             buf,
             command,
@@ -58,9 +56,6 @@ impl<'a> Widget for TerminalBox<'a> {
             }
         }
 
-        // Parse spans
-        let spans = Span::decode_capacity(self.buf, Self::PARSE_CAPACITY).unwrap_or_default();
-
         // Build visible lines only
         let max_lines = area.height as usize;
         let max_width = area.width as usize;
@@ -68,7 +63,7 @@ impl<'a> Widget for TerminalBox<'a> {
         let mut lines: Vec<Vec<(char, Style)>> = Vec::new();
         let mut current = Vec::with_capacity(max_width);
 
-        for span in &spans {
+        for span in self.buf {
             for ch in span.text.chars() {
                 if ch == '\n' {
                     lines.push(core::mem::take(&mut current));

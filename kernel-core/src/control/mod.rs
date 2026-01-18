@@ -9,6 +9,7 @@ use crate::wrapper::SendSyncWrapper;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use core::fmt::Write;
 use crossbeam_queue::SegQueue;
 use embedded_graphics::pixelcolor::Rgb888;
@@ -18,7 +19,7 @@ use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, BorderType, Borders};
-use ustyle::{Attributes, Color, Style};
+use ustyle::{Attributes, Color, Span, Style};
 
 /// Contains the [Display] type.
 pub mod display;
@@ -161,7 +162,8 @@ impl Control {
 /// therefore it's locked behind [Control::run].
 pub struct InnerControl {
     terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
-    buf: String,
+    buf: Vec<Span>,
+    string_buf: String, // temporary buffer for yet-to-be-parsed strings
     command: String,
     scroll_offset: usize,
 }
@@ -171,7 +173,9 @@ impl InnerControl {
     pub const COMMAND_PREFIX: &'static str = "> ";
     /// The command suffix.
     pub const COMMAND_SUFFIX: &'static str = "|";
-    const STRING_BUF_CAPACITY: usize = 1024;
+    const BUF_CAPACITY: usize = 128;
+    const STRING_BUF_CAPACITY: usize = 256;
+    const PARSE_CAPACITY: usize = 4;
     const COMMAND_BUF_CAPACITY: usize = 16;
     const EXPANDED_TAB: &'static str = "    ";
     const BACKGROUND: Color = Color::DarkerGray;
@@ -198,11 +202,21 @@ impl InnerControl {
                     ))
                     .expect("Failed to build terminal"),
                 ),
-                buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
+                buf: Vec::with_capacity(Self::BUF_CAPACITY),
+                string_buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
                 command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
                 scroll_offset: 0,
             }
         }
+    }
+
+    fn parse_temp_buf(&mut self) {
+        let string = self.string_buf.drain(..).collect::<String>();
+
+        let spans =
+            Span::decode_capacity(&string, Self::PARSE_CAPACITY).expect("Failed to parse spans");
+
+        self.buf.extend(spans);
     }
 
     fn handle_input(&mut self, queue: &SegQueue<String>) {
@@ -214,9 +228,10 @@ impl InnerControl {
                     '\n' => {
                         let command: String = self.command.drain(..).collect();
 
-                        self.buf.push_str(Self::COMMAND_PREFIX);
-                        self.buf.push_str(&command);
-                        self.buf.push('\n');
+                        self.buf.push(Span::new(
+                            format!("{}{command}\n", Self::COMMAND_PREFIX),
+                            Style::default(),
+                        ));
 
                         queue.push(command);
                     }
@@ -245,6 +260,10 @@ impl InnerControl {
     }
 
     fn render(&mut self) {
+        if !self.string_buf.is_empty() {
+            self.parse_temp_buf();
+        }
+
         let screen = Rect::from(
             self.terminal
                 .backend()
@@ -280,20 +299,10 @@ impl Write for InnerControl {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         for ch in s.chars() {
             if ch == '\t' {
-                self.buf.push_str(Self::EXPANDED_TAB);
+                self.string_buf.push_str(Self::EXPANDED_TAB);
             } else {
-                self.buf.push(ch);
+                self.string_buf.push(ch);
             }
-        }
-
-        Ok(())
-    }
-
-    fn write_char(&mut self, c: char) -> core::fmt::Result {
-        if c == '\t' {
-            self.buf.push_str(InnerControl::EXPANDED_TAB);
-        } else {
-            self.buf.push(c);
         }
 
         Ok(())
