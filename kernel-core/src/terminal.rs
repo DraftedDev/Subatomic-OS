@@ -63,8 +63,10 @@ impl<'a> Widget for TerminalBox<'a> {
 
         // Build visible lines only
         let max_lines = area.height as usize;
-        let mut lines: Vec<Vec<(char, Style)>> = Vec::with_capacity(max_lines + 1);
-        let mut current = Vec::new();
+        let max_width = area.width as usize;
+
+        let mut lines: Vec<Vec<(char, Style)>> = Vec::new();
+        let mut current = Vec::with_capacity(max_width);
 
         for span in &spans {
             for ch in span.text.chars() {
@@ -72,9 +74,14 @@ impl<'a> Widget for TerminalBox<'a> {
                     lines.push(core::mem::take(&mut current));
                 } else {
                     current.push((ch, span.style));
+
+                    if current.len() == max_width {
+                        lines.push(core::mem::take(&mut current));
+                    }
                 }
             }
         }
+
         if !current.is_empty() {
             lines.push(current);
         }
@@ -112,12 +119,16 @@ impl<'a> Widget for TerminalBox<'a> {
         let start = max_scroll.saturating_sub(scroll);
 
         for (row, line) in lines[start..].iter().enumerate() {
-            let y = area.y + row as u16;
+            let mut y = area.y + row as u16;
             let mut x = area.x;
 
             for (ch, style) in line {
                 if x >= area.right() {
-                    break;
+                    x = area.x;
+                    y += 1;
+                    if y >= area.bottom() {
+                        break;
+                    }
                 }
 
                 if let Some(cell) = buf.cell_mut((x, y)) {
