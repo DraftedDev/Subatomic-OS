@@ -87,7 +87,7 @@ pub mod builtin {
 
     fn clear(_: String) -> Result<(), String> {
         CONTROL.get().run(|ctrl| {
-            ctrl.buf.clear();
+            ctrl.lines.clear();
             ctrl.string_buf.clear();
         });
 

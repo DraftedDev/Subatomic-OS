@@ -4,11 +4,11 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color as TuiColor, Style as TuiStyle};
 use ratatui::widgets::Widget;
-use ustyle::{Attributes, Color, Span, Style};
+use ustyle::{Attributes, Color, Style};
 
 /// A terminal-style text box widget.
 pub struct TerminalBox<'a> {
-    buf: &'a [Span],
+    buf: Vec<Vec<(char, Style)>>,
     command: &'a str,
     default: Style,
     scroll_offset: usize,
@@ -16,7 +16,12 @@ pub struct TerminalBox<'a> {
 
 impl<'a> TerminalBox<'a> {
     /// Create a new [TerminalBox] from a buffer, command line and default style.
-    pub fn new(buf: &'a [Span], command: &'a str, default: Style, scroll_offset: usize) -> Self {
+    pub fn new(
+        buf: Vec<Vec<(char, Style)>>,
+        command: &'a str,
+        default: Style,
+        scroll_offset: usize,
+    ) -> Self {
         Self {
             buf,
             command,
@@ -48,72 +53,44 @@ impl<'a> TerminalBox<'a> {
 }
 
 impl<'a> Widget for TerminalBox<'a> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        // Clear region
-        for y in area.top()..area.bottom() {
-            for x in area.left()..area.right() {
-                buf.cell_mut((x, y)).expect("Failed to get cell").reset();
-            }
-        }
+    fn render(mut self, area: Rect, buf: &mut Buffer) {
+        buf.reset();
 
         // Build visible lines only
         let max_lines = area.height as usize;
-        let max_width = area.width as usize;
-
-        let mut lines: Vec<Vec<(char, Style)>> = Vec::new();
-        let mut current = Vec::with_capacity(max_width);
-
-        for span in self.buf {
-            for ch in span.text.chars() {
-                if ch == '\n' {
-                    lines.push(core::mem::take(&mut current));
-                } else {
-                    current.push((ch, span.style));
-
-                    if current.len() == max_width {
-                        lines.push(core::mem::take(&mut current));
-                    }
-                }
-            }
-        }
-
-        if !current.is_empty() {
-            lines.push(current);
-        }
 
         // Append command line
-        let mut cmd = Vec::with_capacity(
-            InnerControl::COMMAND_PREFIX.len()
-                + self.command.len()
-                + InnerControl::COMMAND_SUFFIX.len(),
-        );
+        let cmd = {
+            let mut buf = Vec::with_capacity(
+                self.command.len() + 3, // prefix + suffix + space
+            );
 
-        for ch in InnerControl::COMMAND_PREFIX.chars() {
-            cmd.push((ch, self.default));
-        }
+            buf.push((InnerControl::COMMAND_PREFIX, self.default));
+            buf.push((' ', self.default));
 
-        for ch in self.command.chars() {
-            cmd.push((ch, self.default));
-        }
+            for ch in self.command.chars() {
+                buf.push((ch, self.default));
+            }
 
-        for ch in InnerControl::COMMAND_SUFFIX.chars() {
-            cmd.push((
-                ch,
+            buf.push((
+                InnerControl::COMMAND_SUFFIX,
                 Style::new(
                     Color::BrighterGray,
                     Color::BrighterGray,
                     Attributes::empty(),
                 ),
             ));
-        }
 
-        lines.push(cmd);
+            buf
+        };
 
-        let max_scroll = lines.len().saturating_sub(max_lines);
+        self.buf.push(cmd);
+
+        let max_scroll = self.buf.len().saturating_sub(max_lines);
         let scroll = self.scroll_offset.min(max_scroll);
         let start = max_scroll.saturating_sub(scroll);
 
-        for (row, line) in lines[start..].iter().enumerate() {
+        for (row, line) in self.buf[start..].iter().enumerate() {
             let mut y = area.y + row as u16;
             let mut x = area.x;
 
@@ -126,10 +103,9 @@ impl<'a> Widget for TerminalBox<'a> {
                     }
                 }
 
-                if let Some(cell) = buf.cell_mut((x, y)) {
-                    cell.set_char(*ch);
-                    cell.set_style(Self::style_to_tui(style, &self.default));
-                }
+                let cell = buf.cell_mut((x, y)).unwrap();
+                cell.set_char(*ch);
+                cell.set_style(Self::style_to_tui(style, &self.default));
 
                 x += 1;
             }

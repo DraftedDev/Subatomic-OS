@@ -162,18 +162,20 @@ impl Control {
 /// therefore it's locked behind [Control::run].
 pub struct InnerControl {
     terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
-    buf: Vec<Span>,
+    lines: Vec<Vec<(char, Style)>>,
     string_buf: String, // temporary buffer for yet-to-be-parsed strings
     command: String,
     scroll_offset: usize,
+    max_width: usize,
 }
 
 impl InnerControl {
     /// The command prefix.
-    pub const COMMAND_PREFIX: &'static str = "> ";
+    pub const COMMAND_PREFIX: char = '>';
     /// The command suffix.
-    pub const COMMAND_SUFFIX: &'static str = "|";
-    const BUF_CAPACITY: usize = 128;
+    pub const COMMAND_SUFFIX: char = '|';
+
+    const LINES_CAPACITY: usize = 128;
     const STRING_BUF_CAPACITY: usize = 256;
     const PARSE_CAPACITY: usize = 4;
     const COMMAND_BUF_CAPACITY: usize = 16;
@@ -186,27 +188,32 @@ impl InnerControl {
     /// # Safety
     /// This should only be called once, since it mutably uses the [DISPLAY] global.
     pub unsafe fn new() -> Self {
-        unsafe {
-            Self {
-                terminal: SendSyncWrapper::new(
-                    Terminal::new(EmbeddedBackend::new(
-                        DISPLAY.get_mut(),
-                        EmbeddedBackendConfig {
-                            flush_callback: Box::new(|_| ()),
-                            font_regular: mousefood::fonts::MONO_9X18,
-                            font_bold: Some(mousefood::fonts::MONO_9X18_BOLD),
-                            font_italic: None,
-                            vertical_alignment: TerminalAlignment::Start,
-                            horizontal_alignment: TerminalAlignment::Start,
-                        },
-                    ))
-                    .expect("Failed to build terminal"),
-                ),
-                buf: Vec::with_capacity(Self::BUF_CAPACITY),
-                string_buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
-                command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
-                scroll_offset: 0,
-            }
+        let terminal = unsafe {
+            SendSyncWrapper::new(
+                Terminal::new(EmbeddedBackend::new(
+                    DISPLAY.get_mut(),
+                    EmbeddedBackendConfig {
+                        flush_callback: Box::new(|_| ()),
+                        font_regular: mousefood::fonts::MONO_9X18,
+                        font_bold: Some(mousefood::fonts::MONO_9X18_BOLD),
+                        font_italic: None,
+                        vertical_alignment: TerminalAlignment::Start,
+                        horizontal_alignment: TerminalAlignment::Start,
+                    },
+                ))
+                .expect("Failed to build terminal"),
+            )
+        };
+
+        let max_width = terminal.size().unwrap().width as usize;
+
+        Self {
+            terminal,
+            lines: Vec::with_capacity(Self::LINES_CAPACITY),
+            string_buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
+            command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
+            scroll_offset: 0,
+            max_width,
         }
     }
 
@@ -219,10 +226,8 @@ impl InnerControl {
                     '\n' => {
                         let command: String = self.command.drain(..).collect();
 
-                        self.buf.push(Span::new(
-                            format!("{}{command}\n", Self::COMMAND_PREFIX),
-                            Style::default(),
-                        ));
+                        self.string_buf
+                            .push_str(&format!("{} {command}\n", Self::COMMAND_PREFIX));
 
                         queue.push(command);
                     }
@@ -258,7 +263,25 @@ impl InnerControl {
             let spans = Span::decode_capacity(&string, Self::PARSE_CAPACITY)
                 .expect("Failed to parse spans");
 
-            self.buf.extend(spans);
+            let mut current = Vec::with_capacity(self.max_width);
+
+            for span in spans {
+                for ch in span.text.chars() {
+                    if ch == '\n' {
+                        self.lines.push(core::mem::take(&mut current));
+                    } else {
+                        current.push((ch, span.style));
+
+                        if current.len() == self.max_width {
+                            self.lines.push(core::mem::take(&mut current));
+                        }
+                    }
+                }
+            }
+
+            if !current.is_empty() {
+                self.lines.push(current);
+            }
         }
 
         let screen = Rect::from(
@@ -278,7 +301,7 @@ impl InnerControl {
 
                 frame.render_widget(
                     TerminalBox::new(
-                        &self.buf,
+                        self.lines.clone(),
                         &self.command,
                         Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
                         self.scroll_offset,
