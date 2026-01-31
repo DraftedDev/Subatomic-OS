@@ -1,7 +1,7 @@
 arch := env_var_or_default("KERNEL_ARCH", "x86_64")
 profile := env_var_or_default("KERNEL_PROFILE", "dev")
 qemu_flags := env_var_or_default("QEMU_FLAGS", "-m 2G")
-cargo_flags := env_var_or_default("CARGO_FLAGS", "")
+cargo_flags := env_var_or_default("CARGO_FLAGS", "--features qemu-exit")
 profile_subdir := if profile == "dev" { "debug" } else { profile }
 out_path := "./target/target-" + arch + "/" + profile_subdir
 iso_path := "./target/kernel-" + arch + "-" + profile + ".iso"

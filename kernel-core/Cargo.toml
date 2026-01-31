@@ -23,6 +23,7 @@ log = { workspace = true }
 
 [features]
 default = []
+qemu-exit = []
 pci = ["pci_types"]
 
 [lib]

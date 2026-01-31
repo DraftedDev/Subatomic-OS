@@ -89,7 +89,7 @@ pub mod builtin {
             usage: "pci <info>",
             run: pci,
         },
-        #[cfg(debug_assertions)]
+        #[cfg(feature = "qemu-exit")]
         Command {
             name: "exit",
             description: "Exits the control via a QEMU exit command.",
@@ -356,6 +356,7 @@ pub mod builtin {
         Ok(())
     }
 
+    #[cfg(feature = "qemu-exit")]
     fn exit(code: String) -> Result<(), String> {
         let code = match code.as_str() {
             "success" => crate::qemu::ExitCode::Success,

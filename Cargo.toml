@@ -21,6 +21,10 @@ description = "Main kernel binary of Subatomic OS"
 kernel-core = { workspace = true }
 log = { workspace = true }
 
+[features]
+default = []
+qemu-exit = ["kernel-core/qemu-exit"]
+
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 kernel-x86_64 = { workspace = true }
 

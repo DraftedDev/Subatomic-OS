@@ -26,6 +26,7 @@ pub mod serial;
 pub mod sync;
 
 /// Contains support for interacting with `Qemu`.
+#[cfg(feature = "qemu-exit")]
 pub mod qemu;
 
 /// Contains the control infrastructure.
