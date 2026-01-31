@@ -17,7 +17,6 @@ pub struct Command {
 
 /// Built-in commands.
 pub mod builtin {
-    use crate::control::CONTROL;
     use crate::control::command::Command;
     use crate::device::DeviceHub;
     use crate::info::KernelInfo;
@@ -82,6 +81,13 @@ pub mod builtin {
             description: "Prints information about the PCI devices to the control.",
             usage: "pci <info>",
             run: pci,
+        },
+        #[cfg(debug_assertions)]
+        Command {
+            name: "exit",
+            description: "Exits the control via a QEMU exit command.",
+            usage: "exit [success|failure]",
+            run: exit,
         },
     ];
 
@@ -328,6 +334,19 @@ pub mod builtin {
         } else {
             return Err("No subcommand specified. Usage: `pci <info>`.".to_string());
         }
+
+        Ok(())
+    }
+
+    fn exit(code: String) -> Result<(), String> {
+        let code = match code.as_str() {
+            "success" => crate::qemu::ExitCode::Success,
+            "failure" => crate::qemu::ExitCode::Failure,
+            "" => crate::qemu::ExitCode::Success,
+            _ => return Err("Invalid exit code. Available: 'success', 'failure'.".to_string()),
+        };
+
+        crate::qemu::exit(code);
 
         Ok(())
     }
