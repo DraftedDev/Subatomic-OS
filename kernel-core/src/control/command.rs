@@ -18,6 +18,7 @@ pub struct Command {
 /// Built-in commands.
 pub mod builtin {
     use crate::control::command::Command;
+    use crate::control::{CONTROL, app};
     use crate::device::DeviceHub;
     use crate::info::KernelInfo;
     use crate::rand::{ChaCha20Rng, Pcg32Rng, Rng, Xoshiro256};
@@ -74,6 +75,12 @@ pub mod builtin {
             description: "Generate random data.",
             usage: "rand [--quality] [--algo <pcg32|xoshiro256|chacha20>] <seed|int|uint|float|bool>",
             run: rand,
+        },
+        Command {
+            name: "game",
+            description: "Run different games.",
+            usage: "game <breakout>",
+            run: game,
         },
         #[cfg(feature = "pci")]
         Command {
@@ -288,6 +295,17 @@ pub mod builtin {
                 algo
             )),
         }?;
+
+        Ok(())
+    }
+
+    fn game(sub: String) -> Result<(), String> {
+        let app = match sub.as_str() {
+            "breakout" => Ok(app::breakout::BreakoutApp::new()),
+            _ => Err("Game not found. Available: 'breakout'.".to_string()),
+        }?;
+
+        CONTROL.get().run(|ctrl| ctrl.set_app(app));
 
         Ok(())
     }
