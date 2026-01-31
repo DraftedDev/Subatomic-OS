@@ -1,4 +1,5 @@
 use crate::collections::FastMap;
+use crate::control::app::{App, AppCommand};
 use crate::control::command::{Command, builtin};
 use crate::control::display::{DISPLAY, Display};
 use crate::control::input::{INPUT, InputControl};
@@ -26,6 +27,9 @@ pub mod display;
 
 /// Contains the [InputControl] struct.
 pub mod input;
+
+/// Provides control application structures.
+pub mod app;
 
 /// Contains the [Command] struct and related features.
 pub mod command;
@@ -167,6 +171,7 @@ pub struct InnerControl {
     command: String,
     scroll_offset: usize,
     max_width: usize,
+    app: Option<Box<dyn App>>,
 }
 
 impl InnerControl {
@@ -214,48 +219,84 @@ impl InnerControl {
             command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
             scroll_offset: 0,
             max_width,
+            app: None,
         }
+    }
+
+    /// Set the current control [App].
+    ///
+    /// If there already was another app active, it will be exited.
+    pub fn set_app(&mut self, app: impl App) {
+        self.app.replace(Box::new(app)).map(|mut app| app.exit());
     }
 
     fn handle_input(&mut self, queue: &SegQueue<String>) {
         let input = INPUT.get();
         while let Some(key) = input.pop() {
-            match key {
-                DecodedKey::Unicode(ch) => match ch {
-                    // New line => execute
-                    '\n' => {
-                        let command: String = self.command.drain(..).collect();
+            let mut command = AppCommand::Continue;
 
-                        self.string_buf
-                            .push_str(&format!("{} {command}\n", Self::COMMAND_PREFIX));
+            if let Some(app) = &mut self.app {
+                command = app.handle_input(key);
+            } else {
+                match key {
+                    DecodedKey::Unicode(ch) => match ch {
+                        // New line => execute
+                        '\n' => {
+                            let command: String = self.command.drain(..).collect();
 
-                        queue.push(command);
-                    }
+                            self.string_buf
+                                .push_str(&format!("{} {command}\n", Self::COMMAND_PREFIX));
 
-                    // Backspace => delete last character
-                    '\x08' => {
-                        self.command.pop();
-                    }
+                            queue.push(command);
+                        }
 
-                    // Else => push to command
-                    _ => self.command.push(ch),
-                },
+                        // Backspace => delete last character
+                        '\x08' => {
+                            self.command.pop();
+                        }
 
-                DecodedKey::RawKey(code) => match code {
-                    // Scroll up => increment scroll offset
-                    KeyCode::ArrowUp => self.scroll_offset = self.scroll_offset.saturating_add(1),
+                        // Else => push to command
+                        _ => self.command.push(ch),
+                    },
 
-                    // Scroll down => decrement scroll offset
-                    KeyCode::ArrowDown => self.scroll_offset = self.scroll_offset.saturating_sub(1),
+                    DecodedKey::RawKey(code) => match code {
+                        // Scroll up => increment scroll offset
+                        KeyCode::ArrowUp => {
+                            self.scroll_offset = self.scroll_offset.saturating_add(1)
+                        }
 
-                    // Else => do nothing
-                    _ => (),
-                },
+                        // Scroll down => decrement scroll offset
+                        KeyCode::ArrowDown => {
+                            self.scroll_offset = self.scroll_offset.saturating_sub(1)
+                        }
+
+                        // Else => do nothing
+                        _ => (),
+                    },
+                }
             }
+
+            self.handle_command(command);
         }
     }
 
     fn render(&mut self) {
+        let mut command = AppCommand::Continue;
+
+        if let Some(app) = &mut self.app {
+            self.terminal
+                .draw(|frame| {
+                    command = app.render(frame);
+                })
+                .expect("Failed to draw app");
+        } else {
+            self.render_terminal();
+        }
+
+        self.handle_command(command);
+    }
+
+    fn render_terminal(&mut self) {
         // Parse temp buffer if not empty
         if !self.string_buf.is_empty() {
             let string = self.string_buf.drain(..).collect::<String>();
@@ -312,6 +353,30 @@ impl InnerControl {
                 frame.render_widget(block, screen);
             })
             .expect("Failed to draw terminal");
+    }
+
+    fn handle_command(&mut self, command: AppCommand) {
+        match command {
+            AppCommand::SetApp(app) => {
+                self.app.replace(app).unwrap().exit();
+            }
+
+            AppCommand::Exit(msg) => {
+                self.app.take().unwrap().exit();
+
+                if let Some(msg) = msg {
+                    self.string_buf.push_str(&msg);
+                }
+            }
+
+            AppCommand::Multiple(commands) => {
+                for command in commands {
+                    self.handle_command(command);
+                }
+            }
+
+            AppCommand::Continue => (),
+        }
     }
 }
 
