@@ -320,7 +320,7 @@ pub mod builtin {
                     api::without_interrupts(|| {
                         crate::device::pci::PCI_HUB.get().run(|hub| {
                             for (idx, dev) in hub.devices().iter().enumerate() {
-                                let dev = hub.get(dev).expect("Failed to get device");
+                                let dev = hub.get(*dev).expect("Failed to get device");
                                 let class = dev.class();
                                 let (ven_id, dev_id) = dev.id();
 

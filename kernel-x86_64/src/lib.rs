@@ -8,6 +8,8 @@ extern crate alloc;
 use kernel_core::api;
 use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
 use kernel_core::info::KernelApiInfo;
+use x86_64::structures::paging::PageTableFlags;
+use x86_64::{PhysAddr, VirtAddr};
 
 pub mod acpi;
 pub mod commands;
@@ -44,6 +46,8 @@ pub const KERNEL_API: KernelApi = KernelApi {
         alloc_zeroed: memory::allocator::alloc_zeroed,
         dealloc: memory::allocator::dealloc,
         realloc: memory::allocator::realloc,
+        translate,
+        map_to,
     },
     time: TimeApi {
         read_local: time::read_local,
@@ -71,4 +75,24 @@ fn seed_fast() -> u64 {
     let rip = x86_64::instructions::read_rip().as_u64();
 
     (tsc ^ rip).wrapping_mul(0x9E3779B97F4A7C15)
+}
+
+unsafe fn translate(addr: usize) -> usize {
+    memory::mapper::translate_addr(VirtAddr::new(addr as u64))
+        .expect("Failed to translate address")
+        .as_u64() as usize
+}
+
+unsafe fn map_to(addr: usize, writable: bool, cache: bool) -> usize {
+    let mut flags = PageTableFlags::PRESENT;
+
+    if writable {
+        flags.insert(PageTableFlags::WRITABLE);
+    }
+
+    if !cache {
+        flags.insert(PageTableFlags::NO_CACHE);
+    }
+
+    unsafe { memory::mapper::map_address(PhysAddr::new(addr as u64), flags) }.as_u64() as usize
 }

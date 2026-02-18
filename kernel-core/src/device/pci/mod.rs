@@ -9,7 +9,7 @@ use crate::sync::rwlock::RwLock;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use pci_types::{
-    CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType, Interface,
+    Bar, CommandRegister, ConfigRegionAccess, DeviceId, DeviceRevision, HeaderType, Interface,
     PciAddress, PciHeader, VendorId,
 };
 
@@ -35,6 +35,157 @@ pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 /// that this is called before any [PciDeviceHub] operations and only once.
 pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
     unsafe { PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base))) }
+}
+
+/// The device hub to control all PCI devices.
+pub struct PciDeviceHub {
+    devices: FastMap<u32, PciDevice>,
+    drivers: FastMap<&'static str, Box<dyn PciDriver>>,
+    driver_devices: FastMap<&'static str, Vec<u32>>,
+    config: PciConfig,
+}
+
+impl PciDeviceHub {
+    /// Create a new [PciDeviceHub] with the given ECAM base address.
+    pub fn new(ecam_base: usize) -> Self {
+        Self {
+            devices: FastMap::default(),
+            drivers: FastMap::default(),
+            driver_devices: FastMap::default(),
+            config: PciConfig::new(ecam_base),
+        }
+    }
+
+    /// Get all device IDs that the given driver operate on.
+    pub fn get_driver_devices(&self, driver: &'static str) -> Option<&Vec<u32>> {
+        self.driver_devices.get(driver)
+    }
+
+    /// Helper: enumerates one function of a device
+    fn enumerate_function(
+        &mut self,
+        segment: u16,
+        bus: u8,
+        device: u8,
+        function: u8,
+    ) -> Result<(), PciError> {
+        let addr = PciAddress::new(segment, bus, device, function);
+
+        // Read vendor ID to check if the device exists
+        let vendor = unsafe { self.config.read(addr, 0x00) & 0xFFFF } as u16;
+        if vendor == 0xFFFF {
+            return Ok(()); // no device here
+        }
+
+        let dev = PciDevice::new(addr, self.config);
+
+        let device_id = ((segment as u32) << 24)
+            | ((bus as u32) << 16)
+            | ((device as u32) << 11)
+            | ((function as u32) << 8);
+        self.devices.insert(device_id, dev);
+
+        Ok(())
+    }
+
+    /// Helper: enumerates a single device (may have multiple functions)
+    fn enumerate_device(&mut self, segment: u16, bus: u8, device: u8) -> Result<(), PciError> {
+        self.enumerate_function(segment, bus, device, 0)?;
+
+        let header_type = unsafe {
+            self.config
+                .read(PciAddress::new(segment, bus, device, 0), 0x0C)
+                >> 16
+                & 0xFF
+        };
+        if (header_type & 0x80) != 0 {
+            // Enumerate functions 1..7
+            for func in 1..8 {
+                self.enumerate_function(segment, bus, device, func)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Helper: enumerates a single bus
+    fn enumerate_bus(&mut self, segment: u16, bus: u8) -> Result<(), PciError> {
+        for device in 0..32 {
+            self.enumerate_device(segment, bus, device)?;
+        }
+        Ok(())
+    }
+}
+
+impl DeviceHub for PciDeviceHub {
+    type Device = PciDevice;
+    type DeviceId = u32;
+    type Driver = Box<dyn PciDriver>;
+    type DriverId = &'static str;
+    type Error = PciError;
+
+    fn init(&mut self) -> Result<(), Self::Error> {
+        // Modern PCI allows 0 to =255 buses, usually only segment 0 exists
+        let segments = [0u16]; // TODO: extend if multiple segments
+        for &segment in &segments {
+            for bus in 0..=255 {
+                self.enumerate_bus(segment, bus)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error> {
+        if self.drivers.contains_key(driver.name()) {
+            return Err(PciError::DriverAlreadyRegistered);
+        }
+
+        let mut devices = Vec::with_capacity(1);
+
+        for (id, device) in &self.devices {
+            if driver.should_bind(device) {
+                driver.init(device);
+                devices.push(*id);
+            }
+        }
+
+        self.driver_devices.insert(driver.name(), devices);
+        self.drivers.insert(driver.name(), driver);
+
+        Ok(())
+    }
+
+    fn unregister(&mut self, driver: &'static str) -> Result<Self::Driver, Self::Error> {
+        let driver = self
+            .drivers
+            .remove(driver)
+            .ok_or(PciError::DriverNotFound)?;
+
+        let devices = self
+            .driver_devices
+            .remove(driver.name())
+            .ok_or(PciError::DriverNotFound)?;
+
+        for id in devices {
+            let device = self.get(id)?;
+            driver.destroy(device);
+        }
+
+        Ok(driver)
+    }
+
+    fn devices(&self) -> Vec<Self::DeviceId> {
+        self.devices.keys().map(|id| *id).collect()
+    }
+
+    fn get(&self, id: Self::DeviceId) -> Result<&Self::Device, Self::Error> {
+        self.devices.get(&id).ok_or(PciError::DeviceNotFound)
+    }
+
+    fn get_driver(&self, driver: Self::DriverId) -> Result<&Self::Driver, Self::Error> {
+        self.drivers.get(driver).ok_or(PciError::DriverNotFound)
+    }
 }
 
 /// A PCI device.
@@ -123,126 +274,88 @@ impl PciDevice {
     pub fn capabilities(&self) -> &PciCapabilities {
         &self.capabilities
     }
+
+    /// Enables bus mastering for this PCI device.
+    pub fn enable_bus_mastering(&self) {
+        const COMMAND_OFFSET: u16 = 0x04;
+        const BUS_MASTER_BIT: u32 = 1 << 2;
+        const MEMORY_SPACE_BIT: u32 = 1 << 1;
+
+        let mut cmd = unsafe { self.config.read(self.addr, COMMAND_OFFSET) };
+
+        if (cmd & BUS_MASTER_BIT) == 0 {
+            cmd |= BUS_MASTER_BIT | MEMORY_SPACE_BIT;
+            unsafe { self.config.write(self.addr, COMMAND_OFFSET, cmd) };
+        }
+    }
+
+    /// Returns the BAR at the given index.
+    pub fn bar(&self, index: usize) -> Option<Bar> {
+        if index > 5 {
+            return None;
+        }
+
+        const BAR0_OFFSET: u16 = 0x10;
+        let offset = BAR0_OFFSET + (index as u16) * 4;
+
+        // Read original BAR value
+        let original = unsafe { self.config.read(self.addr, offset) };
+        if original == 0 {
+            return None; // BAR not implemented
+        }
+
+        // Check if I/O space
+        if (original & 0x1) != 0 {
+            // I/O BAR
+            let port_addr = original & 0xFFFFFFFC;
+            Some(Bar::Io { port: port_addr })
+        } else {
+            // Memory BAR
+            let prefetchable = (original & 0x8) != 0;
+            let bar_type = (original >> 1) & 0x3;
+
+            match bar_type {
+                0 => {
+                    // 32-bit MMIO
+                    // Determine size
+                    unsafe { self.config.write(self.addr, offset, 0xFFFF_FFFF) };
+                    let size = !(unsafe { self.config.read(self.addr, offset) } & 0xFFFF_FFF0) + 1;
+                    unsafe { self.config.write(self.addr, offset, original) }; // restore
+                    Some(Bar::Memory32 {
+                        address: original & 0xFFFF_FFF0,
+                        size,
+                        prefetchable,
+                    })
+                }
+                2 => {
+                    // 64-bit MMIO (uses next BAR too)
+                    let low = original & 0xFFFF_FFF0;
+                    let next_offset = offset + 4;
+                    let high = unsafe { self.config.read(self.addr, next_offset) };
+                    let original_high = high;
+                    unsafe { self.config.write(self.addr, offset, 0xFFFF_FFF0) };
+                    unsafe { self.config.write(self.addr, next_offset, 0xFFFF_FFFF) };
+                    let size_low = unsafe { self.config.read(self.addr, offset) } & 0xFFFF_FFF0;
+                    let size_high = unsafe { self.config.read(self.addr, next_offset) };
+                    let size = !(u64::from(size_high) << 32 | u64::from(size_low)) + 1;
+                    unsafe { self.config.write(self.addr, offset, original) };
+                    unsafe { self.config.write(self.addr, next_offset, original_high) };
+
+                    Some(Bar::Memory64 {
+                        address: (u64::from(high) << 32) | u64::from(low),
+                        size,
+                        prefetchable,
+                    })
+                }
+                _ => None, // reserved / unsupported
+            }
+        }
+    }
 }
 
 impl Device for PciDevice {
     type DeviceId = u32;
     type Error = PciError;
-}
-
-/// The device hub to control all PCI devices.
-pub struct PciDeviceHub {
-    devices: FastMap<u32, PciDevice>,
-    drivers: FastMap<&'static str, Box<dyn PciDriver>>,
-    config: PciConfig,
-}
-
-impl PciDeviceHub {
-    /// Create a new [PciDeviceHub] with the given ECAM base address.
-    pub fn new(ecam_base: usize) -> Self {
-        Self {
-            devices: FastMap::default(),
-            drivers: FastMap::default(),
-            config: PciConfig::new(ecam_base),
-        }
-    }
-
-    /// Helper: enumerates one function of a device
-    fn enumerate_function(
-        &mut self,
-        segment: u16,
-        bus: u8,
-        device: u8,
-        function: u8,
-    ) -> Result<(), PciError> {
-        let addr = PciAddress::new(segment, bus, device, function);
-
-        // Read vendor ID to check if the device exists
-        let vendor = unsafe { self.config.read(addr, 0x00) & 0xFFFF } as u16;
-        if vendor == 0xFFFF {
-            return Ok(()); // no device here
-        }
-
-        let dev = PciDevice::new(addr, self.config);
-
-        let device_id = ((segment as u32) << 24)
-            | ((bus as u32) << 16)
-            | ((device as u32) << 11)
-            | ((function as u32) << 8);
-        self.devices.insert(device_id, dev);
-
-        Ok(())
-    }
-
-    /// Helper: enumerates a single device (may have multiple functions)
-    fn enumerate_device(&mut self, segment: u16, bus: u8, device: u8) -> Result<(), PciError> {
-        self.enumerate_function(segment, bus, device, 0)?;
-
-        let header_type = unsafe {
-            self.config
-                .read(PciAddress::new(segment, bus, device, 0), 0x0C)
-                >> 16
-                & 0xFF
-        };
-        if (header_type & 0x80) != 0 {
-            // Enumerate functions 1..7
-            for func in 1..8 {
-                self.enumerate_function(segment, bus, device, func)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Helper: enumerates a single bus
-    fn enumerate_bus(&mut self, segment: u16, bus: u8) -> Result<(), PciError> {
-        for device in 0..32 {
-            self.enumerate_device(segment, bus, device)?;
-        }
-        Ok(())
-    }
-}
-
-impl DeviceHub for PciDeviceHub {
-    type Device = PciDevice;
-    type DeviceId = u32;
-    type Driver = Box<dyn PciDriver>;
-    type Error = PciError;
-
-    fn init(&mut self) -> Result<(), Self::Error> {
-        // Modern PCI allows 0 to =255 buses, usually only segment 0 exists
-        let segments = [0u16]; // TODO: extend if multiple segments
-        for &segment in &segments {
-            for bus in 0..=255 {
-                self.enumerate_bus(segment, bus)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn devices(&self) -> Vec<Self::DeviceId> {
-        self.devices.keys().cloned().collect::<Vec<_>>()
-    }
-
-    fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error> {
-        self.devices.get(id).ok_or(PciError::DeviceNotFound)
-    }
-
-    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error> {
-        let driver = self
-            .drivers
-            .insert(driver.name(), driver)
-            .ok_or(PciError::DriverAlreadyRegistered)?;
-
-        for device in self.devices.values() {
-            if driver.should_bind(device) {
-                driver.init(device);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// A trait to define PCI device drivers.

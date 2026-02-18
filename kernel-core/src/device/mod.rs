@@ -20,22 +20,30 @@ pub trait DeviceHub {
     type DeviceId;
     /// The driver type that works with this hub and device type.
     type Driver;
+    /// The driver id of the [Self::Driver] this hub manages.
+    type DriverId;
     /// The error type that can be produced by various operations.
     type Error;
 
     /// Initialize the hub. This should load all present devices.
     fn init(&mut self) -> Result<(), Self::Error>;
 
-    /// Returns a list of loaded devices by their IDs.
+    /// Register a driver.
+    ///
+    /// The driver should be registered for every compatible device.
+    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error>;
+
+    /// Unregister a driver.
+    ///
+    /// This will unregister and call the driver's destroy function.
+    fn unregister(&mut self, driver: Self::DriverId) -> Result<Self::Driver, Self::Error>;
+
+    /// Returns all registered device IDs.
     fn devices(&self) -> Vec<Self::DeviceId>;
 
-    /// Get a device by its ID.
-    fn get(&self, id: &Self::DeviceId) -> Result<&Self::Device, Self::Error>;
+    /// Returns a reference to the device with the given ID.
+    fn get(&self, id: Self::DeviceId) -> Result<&Self::Device, Self::Error>;
 
-    /// Registers a driver.
-    ///
-    /// This should check if the driver can be bound to any device.
-    ///
-    /// Must be called after [DeviceHub::init].
-    fn register(&mut self, driver: Self::Driver) -> Result<(), Self::Error>;
+    /// Returns a reference to the driver with the given name.
+    fn get_driver(&self, driver: Self::DriverId) -> Result<&Self::Driver, Self::Error>;
 }

@@ -191,6 +191,10 @@ pub struct MemoryApi {
     pub dealloc: unsafe fn(ptr: *mut u8, layout: Layout),
     /// See [core::alloc::GlobalAlloc::realloc].
     pub realloc: unsafe fn(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8,
+    /// Translates a physical address to a virtual address.
+    pub translate: unsafe fn(addr: usize) -> usize,
+    /// Maps the given physical address to a virtual address.
+    pub map_to: unsafe fn(addr: usize, writable: bool, cache: bool) -> usize,
 }
 
 impl MemoryApi {
@@ -231,6 +235,18 @@ impl MemoryApi {
     /// The specified pointer, layout and new size must be correct.
     pub unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         unsafe { (self.realloc)(ptr, layout, new_size) }
+    }
+
+    /// Translates a physical address to a virtual address.
+    // TODO: make this return Option or Result?
+    // TODO 2: refine memory api to use either usize or *mut u8 as pointer types
+    pub unsafe fn translate(&self, addr: usize) -> usize {
+        unsafe { (self.translate)(addr) }
+    }
+
+    /// Maps the given physical address to a virtual address.
+    pub unsafe fn map_to(&self, addr: usize, writable: bool, cache: bool) -> usize {
+        unsafe { (self.map_to)(addr, writable, cache) }
     }
 }
 
