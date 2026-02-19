@@ -9,7 +9,7 @@ use kernel_core::control::CONTROL;
 use kernel_core::control::display::{DISPLAY, Display};
 use kernel_core::info::KernelInfo;
 use kernel_core::requests::BASE_REVISION;
-use kernel_core::{api, control, logger};
+use kernel_core::{api, control, logger, module};
 use log::LevelFilter;
 
 pub mod allocator;
@@ -44,6 +44,7 @@ unsafe extern "C" fn kernel_main() -> ! {
 
     loop {
         CONTROL.get().update();
+        module::run_update();
         api::halt();
     }
 }
@@ -66,6 +67,11 @@ unsafe fn init(filter: LevelFilter) {
         (kernel.init)();
     }
 
+    log::info!("Loading kernel modules...");
+    unsafe {
+        module::init();
+    }
+
     log::info!("Initializing Display...");
     unsafe {
         DISPLAY.init(Display::new());
@@ -76,12 +82,15 @@ unsafe fn init(filter: LevelFilter) {
         control::init();
     }
 
-    api::enable_interrupts();
-
     log::info!("Setting up kernel...");
     unsafe {
         (kernel.setup)();
     }
+
+    log::info!("Initializing kernel modules...");
+    module::run_init();
+
+    api::enable_interrupts();
 }
 
 fn print_intro() {

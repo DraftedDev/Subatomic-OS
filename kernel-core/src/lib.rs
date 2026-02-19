@@ -49,3 +49,6 @@ pub mod device;
 
 /// Contains random data generation infrastructure.
 pub mod rand;
+
+/// Contains kernel module infrastructure.
+pub mod module;

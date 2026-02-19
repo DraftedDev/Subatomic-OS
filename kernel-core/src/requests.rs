@@ -3,11 +3,12 @@ use limine::mp::RequestFlags;
 use limine::paging::Mode;
 use limine::request::{
     BootloaderInfoRequest, DateAtBootRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest,
-    MpRequest, PagingModeRequest, RequestsEndMarker, RequestsStartMarker, RsdpRequest,
+    ModuleRequest, MpRequest, PagingModeRequest, RequestsEndMarker, RequestsStartMarker,
+    RsdpRequest,
 };
 use limine::response::{
     BootloaderInfoResponse, DateAtBootResponse, FramebufferResponse, HhdmResponse,
-    MemoryMapResponse, MpResponse, PagingModeResponse, RsdpResponse,
+    MemoryMapResponse, ModuleResponse, MpResponse, PagingModeResponse, RsdpResponse,
 };
 
 /// The start marker for Limine requests.
@@ -61,6 +62,11 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::with_revision(0);
 #[unsafe(link_section = ".requests")]
 static MP_REQUEST: MpRequest = MpRequest::with_revision(0).with_flags(RequestFlags::empty());
 
+/// Request modules from limine.
+#[used]
+#[unsafe(link_section = ".requests")]
+static MODULE_REQUEST: ModuleRequest = ModuleRequest::with_revision(1);
+
 /// The end marker for Limine requests.
 #[used]
 #[unsafe(link_section = ".requests_end_marker")]
@@ -75,7 +81,7 @@ pub unsafe fn framebuffer<'a>() -> &'a FramebufferResponse {
     unsafe {
         FRAMEBUFFER_REQUEST
             .get_response()
-            .expect("Failed to get framebuffer response.")
+            .expect("Failed to get framebuffer response")
     }
 }
 
@@ -88,7 +94,7 @@ pub unsafe fn framebuffer_mut<'a>() -> &'a mut FramebufferResponse {
     unsafe {
         FRAMEBUFFER_REQUEST
             .get_response_mut()
-            .expect("Failed to get framebuffer response.")
+            .expect("Failed to get framebuffer response")
     }
 }
 
@@ -96,47 +102,52 @@ pub unsafe fn framebuffer_mut<'a>() -> &'a mut FramebufferResponse {
 pub fn rsdp<'a>() -> &'a RsdpResponse {
     RSDP_REQUEST
         .get_response()
-        .expect("Failed to get rsdp response.")
+        .expect("Failed to get rsdp response")
 }
 
 /// Returns the [DateAtBootResponse].
 pub fn boot_date<'a>() -> &'a DateAtBootResponse {
     BOOT_DATE_REQUEST
         .get_response()
-        .expect("Failed to get boot date response.")
+        .expect("Failed to get boot date response")
 }
 
 /// Returns the [BootloaderInfoResponse].
 pub fn bootloader_info<'a>() -> &'a BootloaderInfoResponse {
     BOOTLOADER_INFO_REQUEST
         .get_response()
-        .expect("Failed to get bootloader info response.")
+        .expect("Failed to get bootloader info response")
 }
 
 /// Returns the [PagingModeResponse].
 pub fn paging<'a>() -> &'a PagingModeResponse {
     PAGING_REQUEST
         .get_response()
-        .expect("Failed to get paging mode response.")
+        .expect("Failed to get paging mode response")
 }
 
 /// Returns the [MemoryMapResponse].
 pub fn memory_map<'a>() -> &'a MemoryMapResponse {
     MEMORY_REQUEST
         .get_response()
-        .expect("Failed to get memory map response.")
+        .expect("Failed to get memory map response")
 }
 
 /// Returns the [HhdmResponse].
 pub fn higher_half_dm<'a>() -> &'a HhdmResponse {
     HHDM_REQUEST
         .get_response()
-        .expect("Failed to get hhdm response.")
+        .expect("Failed to get hhdm response")
 }
 
 /// Returns the [MpResponse].
 pub fn multi_processors<'a>() -> &'a MpResponse {
     MP_REQUEST
         .get_response()
-        .expect("Failed to get mp response.")
+        .expect("Failed to get mp response")
+}
+
+/// Returns the [ModuleRequest] or [None] if no modules were found.
+pub fn modules<'a>() -> Option<&'a ModuleResponse> {
+    MODULE_REQUEST.get_response()
 }

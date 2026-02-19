@@ -17,6 +17,7 @@ hashbrown = { version = "0.16.1", default-features = false, features = ["inline-
 time = { version = "0.3.44", default-features = false, features = ["alloc"] }
 no-pico-args = "0.5.1"
 pci_types = { version = "0.10.0", optional = true }
+object = { version = "0.38.1", default-features = false, features = ["read"] }
 pc-keyboard = { workspace = true }
 limine = { workspace = true }
 log = { workspace = true }

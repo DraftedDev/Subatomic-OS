@@ -32,6 +32,7 @@ impl PageFrameAllocator {
         let phys_mem_offset = phys_mem_offset();
 
         for region in requests::memory_map().entries() {
+            // TODO: reclaim acpi/bootloader memory
             if region.entry_type != EntryType::USABLE {
                 continue;
             }
