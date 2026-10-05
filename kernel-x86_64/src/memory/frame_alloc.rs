@@ -27,6 +27,7 @@ impl PageFrameAllocator {
     /// Initialize the allocator from all usable memory regions.
     ///
     /// # Safety
+    ///
     /// Must only be called once, before any allocation.
     pub unsafe fn init(&mut self) {
         let phys_mem_offset = phys_mem_offset();

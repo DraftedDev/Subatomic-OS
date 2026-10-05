@@ -15,6 +15,7 @@ pub static MAPPER: InitData<RwLock<OffsetPageTable<'static>>> = InitData::uninit
 /// Initialize the page table mapper.
 ///
 /// # Safety
+///
 /// This must only be called once before any mapper use.
 pub unsafe fn init() {
     let phys_mem_offset = VirtAddr::new(phys_mem_offset());
@@ -53,6 +54,7 @@ pub fn translate_phys_addr(addr: PhysAddr) -> Option<VirtAddr> {
 /// Translate a physical address by simply adding the physical memory offset.
 ///
 /// # Safety
+///
 /// The address must be mapped, since translating an unmapped address will result in undefined behaviour.
 pub unsafe fn translate_phys_addr_unsafe(addr: PhysAddr) -> VirtAddr {
     VirtAddr::new(addr.as_u64() + phys_mem_offset())
@@ -61,6 +63,7 @@ pub unsafe fn translate_phys_addr_unsafe(addr: PhysAddr) -> VirtAddr {
 /// Maps the given physical address with the given page table flags to a virtual address.
 ///
 /// # Safety
+///
 /// The address must not be mapped already and must be valid.
 pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
     FRAME_ALLOCATOR.run_irq(|frame_alloc| {
@@ -85,6 +88,7 @@ pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAdd
 /// Maps the given address with the given page table flags if it is not already.
 ///
 /// # Safety
+///
 /// The address must be valid.
 pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
     FRAME_ALLOCATOR.run_irq(|frame_alloc| {
@@ -111,6 +115,7 @@ pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFl
 /// Maps the given physical address with the given size to a virtual address with the given page table flags.
 ///
 /// # Safety
+///
 /// See [map_address].
 pub unsafe fn map_address_range(start: PhysAddr, size: usize, flags: PageTableFlags) -> VirtAddr {
     FRAME_ALLOCATOR.run_irq(|frame_alloc| {
