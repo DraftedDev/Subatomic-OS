@@ -1,6 +1,6 @@
 arch := env("KERNEL_ARCH", "x86_64")
 profile := env("KERNEL_PROFILE", "dev")
-qemu_flags := env("QEMU_FLAGS", "-m 2G")
+qemu_flags := env("QEMU_FLAGS", "-m 2G -accel kvm -cpu host")
 cargo_flags := env("CARGO_FLAGS", "--features qemu-exit")
 profile_subdir := if profile == "dev" { "debug" } else { profile }
 out_path := "./target/target-" + arch + "/" + profile_subdir
@@ -56,7 +56,8 @@ qemu: get-ovmf build-iso
         -cdrom {{ iso_path }} \
         -serial stdio \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-        -display sdl \
+        -display sdl,gl=on \
+        -machine q35 \
         {{ qemu_flags }}
 
 # [doc("Update the ISO with the new kernel binary.")]
