@@ -9,6 +9,11 @@ use object::{File, Object, ObjectSegment, ObjectSymbol};
 
 pub static MODULES: InitData<Vec<KernelModule>> = InitData::uninit();
 
+/// Initialize kernel modules from the limine modules response.
+///
+/// # Safety
+///
+/// This function must only be called once.
 pub unsafe fn init() {
     if let Some(response) = requests::modules() {
         let limine_modules = response.modules();

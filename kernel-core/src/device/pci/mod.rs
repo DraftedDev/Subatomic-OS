@@ -176,7 +176,7 @@ impl DeviceHub for PciDeviceHub {
     }
 
     fn devices(&self) -> Vec<Self::DeviceId> {
-        self.devices.keys().map(|id| *id).collect()
+        self.devices.keys().copied().collect()
     }
 
     fn get(&self, id: Self::DeviceId) -> Result<&Self::Device, Self::Error> {

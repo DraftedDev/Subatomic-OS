@@ -238,6 +238,9 @@ impl MemoryApi {
     }
 
     /// Translates a physical address to a virtual address.
+    ///
+    /// # Safety
+    /// The specified address must be valid.
     // TODO: make this return Option or Result?
     // TODO 2: refine memory api to use either usize or *mut u8 as pointer types
     pub unsafe fn translate(&self, addr: usize) -> usize {
@@ -245,6 +248,9 @@ impl MemoryApi {
     }
 
     /// Maps the given physical address to a virtual address.
+    ///
+    /// # Safety
+    /// The specified address must be valid.
     pub unsafe fn map_to(&self, addr: usize, writable: bool, cache: bool) -> usize {
         unsafe { (self.map_to)(addr, writable, cache) }
     }

@@ -133,13 +133,13 @@ impl Rng for Xoshiro256 {
     fn seed(&mut self, seed: u64) {
         let mut sm_state = seed;
 
-        for i in 0..4 {
+        (0..4).into_iter().for_each(|i| {
             sm_state = sm_state.wrapping_add(0x9e3779b97f4a7c15);
             let mut z = sm_state;
             z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
             z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
             self.state[i] = z ^ (z >> 31);
-        }
+        });
 
         if self.state.iter().all(|&x| x == 0) {
             self.state[0] = seed | 1;
@@ -248,10 +248,10 @@ impl Rng for ChaCha20Rng {
         // Fill the rest of the key (6-11) with deterministic constants derived from seed
         // This ensures the 256-bit key space is fully utilized.
         let mut mix = seed;
-        for i in 6..12 {
+        (6..12).into_iter().for_each(|i| {
             mix = mix.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x1);
             self.state[i] = (mix ^ (mix >> 32)) as u32;
-        }
+        });
 
         // Block counter (12-13)
         self.state[12] = 0;

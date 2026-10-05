@@ -93,21 +93,18 @@ impl<'a> Widget for TerminalBox<'a> {
             }
 
             let y = area.y + row as u16;
-            let mut x = area.x;
-
-            let line: &[(char, Style)];
 
             // Normal buffer line
             let cmd_storage;
-            if line_idx < self.buf.len() {
-                line = &self.buf[line_idx];
+            let line: &[(char, Style)] = if line_idx < self.buf.len() {
+                &self.buf[line_idx]
             } else {
                 // Command line (built on the fly, no cloning of scrollback)
                 cmd_storage = Self::build_command_line(self.command, self.default);
-                line = &cmd_storage;
-            }
+                &cmd_storage
+            };
 
-            for (ch, style) in line {
+            for (x, (ch, style)) in (area.x..).zip(line.iter()) {
                 if x >= area.right() {
                     break;
                 }
@@ -115,8 +112,6 @@ impl<'a> Widget for TerminalBox<'a> {
                 let cell = buf.cell_mut((x, y)).unwrap();
                 cell.set_char(*ch);
                 cell.set_style(Self::style_to_tui(style, &self.default));
-
-                x += 1;
             }
         }
     }

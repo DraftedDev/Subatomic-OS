@@ -227,7 +227,9 @@ impl InnerControl {
     ///
     /// If there already was another app active, it will be exited.
     pub fn set_app(&mut self, app: impl App) {
-        self.app.replace(Box::new(app)).map(|mut app| app.exit());
+        if let Some(mut app) = self.app.replace(Box::new(app)) {
+            app.exit()
+        }
     }
 
     fn handle_input(&mut self, queue: &SegQueue<String>) {
@@ -242,7 +244,7 @@ impl InnerControl {
                     DecodedKey::Unicode(ch) => match ch {
                         // New line => execute
                         '\n' => {
-                            let command: String = self.command.drain(..).collect();
+                            let command: String = core::mem::take(&mut self.command);
 
                             self.string_buf
                                 .push_str(&format!("{} {command}\n", Self::COMMAND_PREFIX));
@@ -299,7 +301,7 @@ impl InnerControl {
     fn render_terminal(&mut self) {
         // Parse temp buffer if not empty
         if !self.string_buf.is_empty() {
-            let string = self.string_buf.drain(..).collect::<String>();
+            let string = core::mem::take(&mut self.string_buf);
 
             let spans = Span::decode_capacity(&string, Self::PARSE_CAPACITY)
                 .expect("Failed to parse spans");

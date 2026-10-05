@@ -124,24 +124,23 @@ impl App for BreakoutApp {
         if self.ball_vel.1 > 0 // only when moving downward
             && self.ball.1 < paddle_y - 1
             && next_y >= paddle_y - 1
+         && next_x >= self.paddle_x && next_x < self.paddle_x + PADDLE_WIDTH as i16
         {
-            if next_x >= self.paddle_x && next_x < self.paddle_x + PADDLE_WIDTH as i16 {
-                next_y = paddle_y - 1;
-                self.ball_vel.1 = -self.ball_vel.1;
+            next_y = paddle_y - 1;
+            self.ball_vel.1 = -self.ball_vel.1;
 
-                // Optional: angle control based on hit position
-                let hit_pos = next_x - self.paddle_x;
-                let center = PADDLE_WIDTH as i16 / 2;
+            // Optional: angle control based on hit position
+            let hit_pos = next_x - self.paddle_x;
+            let center = PADDLE_WIDTH as i16 / 2;
 
-                let mut new_vx = (hit_pos - center) / 3;
+            let mut new_vx = (hit_pos - center) / 3;
 
-                // If near center, keep previous horizontal direction
-                if new_vx == 0 {
-                    new_vx = if self.ball_vel.0 >= 0 { 1 } else { -1 };
-                }
-
-                self.ball_vel.0 = new_vx;
+            // If near center, keep previous horizontal direction
+            if new_vx == 0 {
+                new_vx = if self.ball_vel.0 >= 0 { 1 } else { -1 };
             }
+
+            self.ball_vel.0 = new_vx;
         }
 
         /* ---------- Brick collision ---------- */
