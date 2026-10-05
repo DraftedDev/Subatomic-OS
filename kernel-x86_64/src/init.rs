@@ -27,7 +27,7 @@ pub unsafe fn init() {
         memory::init_phys_mem();
 
         log::info!("Initializing page frame allocator...");
-        frame_alloc::FRAME_ALLOCATOR.run(|alloc| alloc.init());
+        frame_alloc::get().init();
 
         log::info!("Initializing page mapper...");
         mapper::init();

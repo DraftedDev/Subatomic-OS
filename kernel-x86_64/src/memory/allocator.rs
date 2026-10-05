@@ -1,4 +1,4 @@
-use crate::memory::frame_alloc::FRAME_ALLOCATOR;
+use crate::memory::frame_alloc;
 use crate::memory::mapper::MAPPER;
 use core::alloc::Layout;
 use core::cmp::Ordering;
@@ -23,36 +23,34 @@ static INIT: InitData<bool> = InitData::uninit();
 /// # Safety
 /// Must only be called once before any allocations.
 pub unsafe fn init() {
-    FRAME_ALLOCATOR.run_irq(|frame_alloc| {
-        MAPPER.get().run_mut_irq(|mapper| {
-            let page_range: PageRangeInclusive = {
-                let heap_start = VirtAddr::new(HEAP_START as u64);
-                let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;
-                let heap_start_page = Page::containing_address(heap_start);
-                let heap_end_page = Page::containing_address(heap_end);
-                Page::range_inclusive(heap_start_page, heap_end_page)
+    MAPPER.get().run_mut_irq(|mapper| {
+        let page_range: PageRangeInclusive = {
+            let heap_start = VirtAddr::new(HEAP_START as u64);
+            let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;
+            let heap_start_page = Page::containing_address(heap_start);
+            let heap_end_page = Page::containing_address(heap_end);
+            Page::range_inclusive(heap_start_page, heap_end_page)
+        };
+
+        for page in page_range {
+            unsafe {
+                mapper
+                    .map_to(
+                        page,
+                        frame_alloc::get()
+                            .allocate_frame()
+                            .expect("failed to allocate frame"),
+                        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                        frame_alloc::get(),
+                    )
+                    .expect("failed to map page frame")
+                    .flush();
             };
+        }
 
-            for page in page_range {
-                unsafe {
-                    mapper
-                        .map_to(
-                            page,
-                            frame_alloc
-                                .allocate_frame()
-                                .expect("failed to allocate frame"),
-                            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                            frame_alloc,
-                        )
-                        .expect("failed to map page frame")
-                        .flush();
-                };
-            }
-
-            ALLOCATOR.run(|talc| unsafe {
-                talc.claim(HEAP_START as *mut u8, HEAP_SIZE)
-                    .expect("Failed to claim memory");
-            });
+        ALLOCATOR.run(|talc| unsafe {
+            talc.claim(HEAP_START as *mut u8, HEAP_SIZE)
+                .expect("Failed to claim memory");
         });
     });
 

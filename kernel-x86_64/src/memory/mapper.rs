@@ -1,5 +1,4 @@
-use crate::memory::frame_alloc::FRAME_ALLOCATOR;
-use crate::memory::phys_mem_offset;
+use crate::memory::{frame_alloc, phys_mem_offset};
 use kernel_core::sync::init::InitData;
 use kernel_core::sync::rwlock::RwLock;
 use x86_64::registers::control::Cr3;
@@ -66,8 +65,9 @@ pub unsafe fn translate_phys_addr_unsafe(addr: PhysAddr) -> VirtAddr {
 ///
 /// The address must not be mapped already and must be valid.
 pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
-    FRAME_ALLOCATOR.run_irq(|frame_alloc| {
-        MAPPER.get().run_mut_irq(|mapper| unsafe {
+    MAPPER
+        .get()
+        .run_mut_irq(|mapper: &mut OffsetPageTable<'static>| unsafe {
             let virt_addr = translate_phys_addr_unsafe(phys_addr);
 
             mapper
@@ -75,14 +75,13 @@ pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAdd
                     Page::<PageSize>::containing_address(virt_addr),
                     PhysFrame::containing_address(phys_addr),
                     flags,
-                    frame_alloc,
+                    frame_alloc::get(),
                 )
                 .expect("address mapping failed")
                 .flush();
 
             virt_addr
         })
-    })
 }
 
 /// Maps the given address with the given page table flags if it is not already.
@@ -91,24 +90,22 @@ pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAdd
 ///
 /// The address must be valid.
 pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
-    FRAME_ALLOCATOR.run_irq(|frame_alloc| {
-        MAPPER.get().run_mut_irq(|mapper| unsafe {
-            let virt_addr = translate_phys_addr_unsafe(phys_addr);
+    MAPPER.get().run_mut_irq(|mapper| unsafe {
+        let virt_addr = translate_phys_addr_unsafe(phys_addr);
 
-            if mapper.translate_addr(virt_addr).is_none() {
-                mapper
-                    .map_to(
-                        Page::<PageSize>::containing_address(virt_addr),
-                        PhysFrame::containing_address(phys_addr),
-                        flags,
-                        frame_alloc,
-                    )
-                    .expect("address mapping failed")
-                    .flush();
-            }
+        if mapper.translate_addr(virt_addr).is_none() {
+            mapper
+                .map_to(
+                    Page::<PageSize>::containing_address(virt_addr),
+                    PhysFrame::containing_address(phys_addr),
+                    flags,
+                    frame_alloc::get(),
+                )
+                .expect("address mapping failed")
+                .flush();
+        }
 
-            virt_addr
-        })
+        virt_addr
     })
 }
 
@@ -118,35 +115,33 @@ pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFl
 ///
 /// See [map_address].
 pub unsafe fn map_address_range(start: PhysAddr, size: usize, flags: PageTableFlags) -> VirtAddr {
-    FRAME_ALLOCATOR.run_irq(|frame_alloc| {
-        MAPPER.get().run_mut_irq(|mapper| unsafe {
-            // Round start and end addresses to 4KiB pages
-            let page_size = 4096;
-            let start_addr = start.as_u64() & !(page_size as u64 - 1);
-            let end_addr =
-                (start.as_u64() + size as u64 + page_size as u64 - 1) & !(page_size as u64 - 1);
+    MAPPER.get().run_mut_irq(|mapper| unsafe {
+        // Round start and end addresses to 4KiB pages
+        let page_size = 4096;
+        let start_addr = start.as_u64() & !(page_size as u64 - 1);
+        let end_addr =
+            (start.as_u64() + size as u64 + page_size as u64 - 1) & !(page_size as u64 - 1);
 
-            let mut current_addr = start_addr;
-            let virt_start = translate_phys_addr_unsafe(PhysAddr::new(current_addr));
+        let mut current_addr = start_addr;
+        let virt_start = translate_phys_addr_unsafe(PhysAddr::new(current_addr));
 
-            while current_addr < end_addr {
-                let phys_frame = PhysFrame::containing_address(PhysAddr::new(current_addr));
-                let virt_page = Page::<PageSize>::containing_address(translate_phys_addr_unsafe(
-                    PhysAddr::new(current_addr),
-                ));
+        while current_addr < end_addr {
+            let phys_frame = PhysFrame::containing_address(PhysAddr::new(current_addr));
+            let virt_page = Page::<PageSize>::containing_address(translate_phys_addr_unsafe(
+                PhysAddr::new(current_addr),
+            ));
 
-                // map the page if not already mapped
-                if mapper.translate_addr(virt_page.start_address()).is_none() {
-                    mapper
-                        .map_to(virt_page, phys_frame, flags, frame_alloc)
-                        .expect("address mapping failed")
-                        .flush();
-                }
-
-                current_addr += page_size as u64;
+            // map the page if not already mapped
+            if mapper.translate_addr(virt_page.start_address()).is_none() {
+                mapper
+                    .map_to(virt_page, phys_frame, flags, frame_alloc::get())
+                    .expect("address mapping failed")
+                    .flush();
             }
 
-            virt_start
-        })
+            current_addr += page_size as u64;
+        }
+
+        virt_start
     })
 }
