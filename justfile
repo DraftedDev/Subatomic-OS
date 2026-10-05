@@ -56,6 +56,7 @@ qemu: get-ovmf build-iso
         -cdrom {{ iso_path }} \
         -serial stdio \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+        -display sdl \
         {{ qemu_flags }}
 
 # [doc("Update the ISO with the new kernel binary.")]

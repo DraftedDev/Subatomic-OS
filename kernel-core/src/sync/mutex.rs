@@ -23,12 +23,18 @@ impl<T> Mutex<T> {
     }
 
     /// Locks the value and runs the given closure on it.
-    ///
-    /// This is used to avoid deadlocks.
     pub fn run<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         let mut lock = self.lock();
 
         f(&mut lock)
+    }
+
+    /// Runs the given closure with interrupts disabled.
+    pub fn run_irq<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        crate::api::without_interrupts(|| {
+            let mut lock = self.lock();
+            f(&mut lock)
+        })
     }
 
     /// Lock the inner value.

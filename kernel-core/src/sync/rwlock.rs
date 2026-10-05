@@ -22,22 +22,34 @@ impl<T> RwLock<T> {
         *inner = value;
     }
 
-    /// Locks the value and runs the given closure on it.
-    ///
-    /// This is used to avoid deadlocks.
+    /// Read-locks the value and runs the given closure on it.
     pub fn run<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         let lock = self.read();
 
         f(&lock)
     }
 
-    /// Locks the value and runs the given closure on it.
-    ///
-    /// This is used to avoid deadlocks.
+    /// Read-locks the value and runs the given closure on it, with interrupts disabled.
+    pub fn run_irq<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        crate::api::without_interrupts(|| {
+            let lock = self.read();
+            f(&lock)
+        })
+    }
+
+    /// Write-locks the value and runs the given closure on it.
     pub fn run_mut<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         let mut lock = self.write();
 
         f(&mut lock)
+    }
+
+    /// Write-locks the value and runs the given closure on it, with interrupts disabled.
+    pub fn run_mut_irq<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        crate::api::without_interrupts(|| {
+            let mut lock = self.write();
+            f(&mut lock)
+        })
     }
 
     /// Acquire read-lock.

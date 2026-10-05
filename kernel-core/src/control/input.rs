@@ -25,7 +25,6 @@ impl InputControl {
     /// Push a key to the queue.
     pub fn push(&self, key: DecodedKey) {
         self.keys.push(key).unwrap_or_else(|_| {
-            // TODO: handle this better. can't do allocations, since we're in interrupt context
             serial_println!("Looks like the keyboard queue is full. Slow down please!");
         });
     }

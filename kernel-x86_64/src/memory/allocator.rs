@@ -23,8 +23,8 @@ static INIT: InitData<bool> = InitData::uninit();
 /// # Safety
 /// Must only be called once before any allocations.
 pub unsafe fn init() {
-    FRAME_ALLOCATOR.run(|frame_alloc| {
-        MAPPER.get().run_mut(|mapper| {
+    FRAME_ALLOCATOR.run_irq(|frame_alloc| {
+        MAPPER.get().run_mut_irq(|mapper| {
             let page_range: PageRangeInclusive = {
                 let heap_start = VirtAddr::new(HEAP_START as u64);
                 let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;
@@ -71,7 +71,7 @@ pub const fn is_init() -> bool {
 /// The specified layout must be correct.
 pub unsafe fn alloc(layout: Layout) -> *mut u8 {
     ALLOCATOR
-        .run(|talc| unsafe { talc.allocate(layout) })
+        .run_irq(|talc| unsafe { talc.allocate(layout) })
         .map_or(ptr::null_mut(), |ptr| ptr.as_ptr())
 }
 
@@ -81,7 +81,7 @@ pub unsafe fn alloc(layout: Layout) -> *mut u8 {
 /// The specified layout must be correct.
 pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
     // Copied from `GlobalAlloc`.
-    ALLOCATOR.run(|talc| unsafe {
+    ALLOCATOR.run_irq(|talc| unsafe {
         let size = layout.size();
         let ptr = talc
             .allocate(layout)
@@ -100,7 +100,7 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
 /// # Safety
 /// The specified layout and pointer must be correct.
 pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
-    ALLOCATOR.run(|talc| unsafe { talc.deallocate(ptr, layout) })
+    ALLOCATOR.run_irq(|talc| unsafe { talc.deallocate(ptr, layout) })
 }
 
 /// See [core::alloc::GlobalAlloc::realloc].
@@ -109,7 +109,7 @@ pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
 /// The specified layout, pointer and new size must be correct.
 pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
     // Copied from `Talck`.
-    ALLOCATOR.run(|talc| unsafe {
+    ALLOCATOR.run_irq(|talc| unsafe {
         match new_size.cmp(&layout.size()) {
             Ordering::Greater => {
                 if talc.try_grow_in_place(ptr, layout, new_size) {
