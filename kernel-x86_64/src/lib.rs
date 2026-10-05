@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+use core::alloc::GlobalAlloc;
+
 use kernel_core::api;
 use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
 use kernel_core::info::KernelApiInfo;
@@ -41,11 +43,23 @@ pub const KERNEL_API: KernelApi = KernelApi {
         write_u32: port::write_u32,
     },
     memory: MemoryApi {
-        is_init: memory::allocator::is_init,
-        alloc: memory::allocator::alloc,
-        alloc_zeroed: memory::allocator::alloc_zeroed,
-        dealloc: memory::allocator::dealloc,
-        realloc: memory::allocator::realloc,
+        is_init: || memory::allocator::is_init(),
+        alloc: |layout| unsafe { memory::allocator::GLOBAL_ALLOCATOR.get().alloc(layout) },
+        alloc_zeroed: |layout| unsafe {
+            memory::allocator::GLOBAL_ALLOCATOR
+                .get()
+                .alloc_zeroed(layout)
+        },
+        dealloc: |ptr, layout| unsafe {
+            memory::allocator::GLOBAL_ALLOCATOR
+                .get()
+                .dealloc(ptr, layout)
+        },
+        realloc: |ptr, layout, new_size| unsafe {
+            memory::allocator::GLOBAL_ALLOCATOR
+                .get()
+                .realloc(ptr, layout, new_size)
+        },
         translate,
         map_to,
     },
