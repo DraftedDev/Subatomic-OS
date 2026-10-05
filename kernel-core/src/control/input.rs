@@ -1,4 +1,3 @@
-use crate::serial_println;
 use crate::sync::init::InitData;
 use crossbeam_queue::ArrayQueue;
 use pc_keyboard::DecodedKey;
@@ -22,11 +21,14 @@ impl InputControl {
         }
     }
 
+    /// Returns whether the input queue is empty.
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
     /// Push a key to the queue.
     pub fn push(&self, key: DecodedKey) {
-        self.keys.push(key).unwrap_or_else(|_| {
-            serial_println!("Looks like the keyboard queue is full. Slow down please!");
-        });
+        let _ = self.keys.push(key);
     }
 
     /// Pop the next key from the queue.

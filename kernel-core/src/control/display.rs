@@ -1,5 +1,7 @@
 use crate::requests;
 use crate::sync::init::InitData;
+use alloc::vec;
+use alloc::vec::Vec;
 use embedded_graphics::Pixel;
 use embedded_graphics::geometry::Dimensions;
 use embedded_graphics::pixelcolor::{Rgb888, RgbColor};
@@ -15,7 +17,9 @@ pub static DISPLAY: InitData<Display> = InitData::uninit();
 pub struct Display {
     width: usize,
     height: usize,
+    pitch: usize,
     fb: &'static mut [u8],
+    backbuffer: Vec<u8>,
 }
 
 impl Display {
@@ -28,17 +32,19 @@ impl Display {
             .next()
             .expect("No display found.");
 
-        let slice = unsafe {
-            core::slice::from_raw_parts_mut(
-                fb.address() as *mut u8,
-                fb.pitch as usize * fb.height as usize,
-            )
-        };
+        let pitch = fb.pitch as usize;
+        let height = fb.height as usize;
+        let width = fb.width as usize;
+        let fb_size = pitch * height;
+
+        let slice = unsafe { core::slice::from_raw_parts_mut(fb.address() as *mut u8, fb_size) };
 
         Self {
-            width: fb.width as usize,
-            height: fb.height as usize,
+            width,
+            height,
+            pitch,
             fb: slice,
+            backbuffer: vec![0; fb_size],
         }
     }
 
@@ -58,13 +64,16 @@ impl Display {
             return;
         }
 
-        let pitch = self.width * 4;
-        let offset = y * pitch + x * 4;
+        let offset = y * self.pitch + x * 4;
+        self.backbuffer[offset] = color.b();
+        self.backbuffer[offset + 1] = color.g();
+        self.backbuffer[offset + 2] = color.r();
+        self.backbuffer[offset + 3] = 0;
+    }
 
-        self.fb[offset] = color.b();
-        self.fb[offset + 1] = color.g();
-        self.fb[offset + 2] = color.r();
-        self.fb[offset + 3] = 0;
+    /// Flushes the RAM backbuffer to VRAM in a single memory block copy.
+    pub fn flush(&mut self) {
+        self.fb.copy_from_slice(&self.backbuffer);
     }
 }
 
@@ -87,6 +96,28 @@ impl DrawTarget for Display {
     {
         for pixel in pixels {
             self.set_pixel(pixel.0.x as usize, pixel.0.y as usize, pixel.1);
+        }
+        Ok(())
+    }
+
+    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+        let intersection = area.intersection(&self.bounding_box());
+        if intersection.is_zero_sized() {
+            return Ok(());
+        }
+
+        let pixel_bytes = [color.b(), color.g(), color.r(), 0];
+        let x_start = intersection.top_left.x as usize;
+        let y_start = intersection.top_left.y as usize;
+        let width = intersection.size.width as usize;
+        let height = intersection.size.height as usize;
+
+        for y in y_start..(y_start + height) {
+            let row_offset = y * self.pitch + x_start * 4;
+            for x in 0..width {
+                let offset = row_offset + x * 4;
+                self.backbuffer[offset..offset + 4].copy_from_slice(&pixel_bytes);
+            }
         }
 
         Ok(())

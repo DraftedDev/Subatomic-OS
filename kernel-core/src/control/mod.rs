@@ -72,6 +72,7 @@ impl Control {
     /// Create a new control instance.
     ///
     /// # Safety
+    ///
     /// See [InnerControl::new].
     pub unsafe fn new() -> Self {
         Self {
@@ -95,8 +96,12 @@ impl Control {
     /// Update the control.
     pub fn update(&self) {
         self.run(|inner| {
-            inner.handle_input(&self.queue);
-            inner.render();
+            if inner.is_dirty() {
+                inner.handle_input(&self.queue);
+                inner.render();
+
+                inner.set_dirty(true);
+            }
         });
 
         self.execute(Self::MAX_EXECUTED_COMMANDS)
@@ -172,6 +177,7 @@ pub struct InnerControl {
     scroll_offset: usize,
     max_width: usize,
     app: Option<Box<dyn App>>,
+    dirty: bool,
 }
 
 impl InnerControl {
@@ -198,7 +204,9 @@ impl InnerControl {
                 Terminal::new(EmbeddedBackend::new(
                     DISPLAY.get_mut(),
                     EmbeddedBackendConfig {
-                        flush_callback: Box::new(|_| ()),
+                        flush_callback: Box::new(|display| {
+                            display.flush();
+                        }),
                         font_regular: mousefood::fonts::MONO_9X18,
                         font_bold: Some(mousefood::fonts::MONO_9X18_BOLD),
                         font_italic: None,
@@ -220,7 +228,18 @@ impl InnerControl {
             scroll_offset: 0,
             max_width,
             app: None,
+            dirty: false,
         }
+    }
+
+    /// Returns whether the control state is dirty.
+    pub fn is_dirty(&self) -> bool {
+        self.dirty || !INPUT.get().is_empty()
+    }
+
+    /// Sets the dirty state of the control.
+    pub fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 
     /// Set the current control [App].
@@ -384,6 +403,8 @@ impl InnerControl {
 
 impl Write for InnerControl {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.set_dirty(true);
+
         for ch in s.chars() {
             if ch == '\t' {
                 self.string_buf.push_str(Self::EXPANDED_TAB);
