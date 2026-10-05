@@ -1,11 +1,9 @@
-# Development Profile
 [profile.dev]
 panic = "abort"
 incremental = true
 rustflags = ["-Zthreads=0"]
-opt-level = 1 # This increases performance by A TON!!!
+opt-level = 1
 
-# Release Profile
 [profile.release]
 panic = "abort"
 strip = true

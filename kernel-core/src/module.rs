@@ -50,16 +50,9 @@ pub struct KernelModule {
 
 impl KernelModule {
     pub fn load_limine(module: &limine::file::File) -> Self {
-        log::info!(
-            "Loading internal limine module {}...",
-            module.path().to_string_lossy()
-        );
-        let addr = module.addr() as *const u8;
-        let size = module.size() as usize;
+        log::info!("Loading internal limine module {}...", module.path());
 
-        let bytes = unsafe { core::slice::from_raw_parts(addr, size) };
-
-        KernelModule::load(bytes)
+        KernelModule::load(module.data())
     }
 
     pub fn load(bytes: impl AsRef<[u8]>) -> KernelModule {

@@ -5,14 +5,14 @@ edition = "2024"
 description = "x86_64 target for Subatomic OS."
 
 [dependencies]
-x86_64 = "0.15.4"
+x86_64 = "0.15.5"
 raw-cpuid = "11.6.0"
-talc = { version = "4.4.3", default-features = false }
-acpi = "6.0.1"
+talc = { version = "5.1.1", default-features = false }
+acpi = "6.1.1"
 x2apic = "0.5.0"
-pc-keyboard = { workspace = true }
-kernel-core = { workspace = true, features = ["pci"] }
+kernel-core = { path = "../kernel-core", features = ["pci"] }
 limine = { workspace = true }
+pc-keyboard = { workspace = true }
 log = { workspace = true }
 
 [lib]

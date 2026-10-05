@@ -3,10 +3,9 @@ use crate::memory::mapper::MAPPER;
 use core::alloc::Layout;
 use core::cmp::Ordering;
 use core::ptr;
-use core::ptr::NonNull;
 use kernel_core::sync::init::InitData;
 use kernel_core::sync::mutex::Mutex;
-use talc::{OomHandler, Span, Talc};
+use talc::base::Talc;
 use x86_64::VirtAddr;
 use x86_64::structures::paging::page::PageRangeInclusive;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags};
@@ -14,7 +13,8 @@ use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags};
 pub const HEAP_START: usize = 0xffff_8800_0000_0000;
 pub const HEAP_SIZE: usize = 16 * 1024 * 1024; // 16 MB
 
-static ALLOCATOR: Mutex<Talc<OutOfMemory>> = Mutex::new(Talc::new(OutOfMemory));
+static ALLOCATOR: Mutex<Talc<talc::source::Manual, talc::DefaultBinning>> =
+    Mutex::new(Talc::new(talc::source::Manual));
 
 static INIT: InitData<bool> = InitData::uninit();
 
@@ -49,10 +49,9 @@ pub unsafe fn init() {
                 };
             }
 
-            let span = Span::from_base_size(HEAP_START as *mut u8, HEAP_SIZE);
-
             ALLOCATOR.run(|talc| unsafe {
-                talc.claim(span).expect("Failed to claim memory");
+                talc.claim(HEAP_START as *mut u8, HEAP_SIZE)
+                    .expect("Failed to claim memory");
             });
         });
     });
@@ -72,7 +71,7 @@ pub const fn is_init() -> bool {
 /// The specified layout must be correct.
 pub unsafe fn alloc(layout: Layout) -> *mut u8 {
     ALLOCATOR
-        .run(|talc| unsafe { talc.malloc(layout) })
+        .run(|talc| unsafe { talc.allocate(layout) })
         .map_or(ptr::null_mut(), |ptr| ptr.as_ptr())
 }
 
@@ -85,7 +84,7 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
     ALLOCATOR.run(|talc| unsafe {
         let size = layout.size();
         let ptr = talc
-            .malloc(layout)
+            .allocate(layout)
             .map_or(ptr::null_mut(), |ptr| ptr.as_ptr());
 
         if !ptr.is_null() {
@@ -101,7 +100,7 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
 /// # Safety
 /// The specified layout and pointer must be correct.
 pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
-    ALLOCATOR.run(|talc| unsafe { talc.free(NonNull::new_unchecked(ptr), layout) })
+    ALLOCATOR.run(|talc| unsafe { talc.deallocate(ptr, layout) })
 }
 
 /// See [core::alloc::GlobalAlloc::realloc].
@@ -111,46 +110,34 @@ pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
 pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
     // Copied from `Talck`.
     ALLOCATOR.run(|talc| unsafe {
-        let nn_ptr = NonNull::new_unchecked(ptr);
-
         match new_size.cmp(&layout.size()) {
             Ordering::Greater => {
-                if let Ok(nn) = talc.grow_in_place(nn_ptr, layout, new_size) {
-                    return nn.as_ptr();
-                }
+                if talc.try_grow_in_place(ptr, layout, new_size) {
+                    return ptr;
+                } // TODO: Else?
 
                 let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
 
-                let allocation = match talc.malloc(new_layout) {
-                    Ok(ptr) => ptr,
-                    Err(_) => return ptr::null_mut(),
+                let allocation = match talc.allocate(new_layout) {
+                    Some(ptr) => ptr,
+                    None => return ptr::null_mut(),
                 };
 
                 allocation
                     .as_ptr()
                     .copy_from_nonoverlapping(ptr, layout.size());
 
-                talc.free(nn_ptr, layout);
+                talc.deallocate(ptr, layout);
 
                 allocation.as_ptr()
             }
 
             Ordering::Less => {
-                talc.shrink(NonNull::new_unchecked(ptr), layout, new_size);
+                talc.shrink(ptr, layout, new_size);
                 ptr
             }
 
             Ordering::Equal => ptr,
         }
     })
-}
-
-struct OutOfMemory;
-
-impl OomHandler for OutOfMemory {
-    fn handle_oom(_: &mut Talc<Self>, _: Layout) -> Result<(), ()> {
-        log::error!("Out of memory!");
-
-        Err(())
-    }
 }

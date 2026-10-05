@@ -1,18 +1,22 @@
-arch := env_var_or_default("KERNEL_ARCH", "x86_64")
-profile := env_var_or_default("KERNEL_PROFILE", "dev")
-qemu_flags := env_var_or_default("QEMU_FLAGS", "-m 2G")
-cargo_flags := env_var_or_default("CARGO_FLAGS", "--features qemu-exit")
+arch := env("KERNEL_ARCH", "x86_64")
+profile := env("KERNEL_PROFILE", "dev")
+qemu_flags := env("QEMU_FLAGS", "-m 2G")
+cargo_flags := env("CARGO_FLAGS", "--features qemu-exit")
 profile_subdir := if profile == "dev" { "debug" } else { profile }
 out_path := "./target/target-" + arch + "/" + profile_subdir
 iso_path := "./target/kernel-" + arch + "-" + profile + ".iso"
 limine_config := if profile == "dev" { "limine-dev.conf" } else { "limine.conf" }
 
+# [doc("Build the limine bootloader.")]
+make-limine:
+    make -C limine
+
 # [doc("Build the kernel for the given architecture. Available: 'x86_64'.")]
 build-kernel:
-    cargo build --target target-{{ arch }}.json --profile {{ profile }} {{ cargo_flags }}
+    cargo build -Zjson-target-spec --target target-{{ arch }}.json --profile {{ profile }} {{ cargo_flags }}
 
 # [doc("Build the ISO image using limine and the built kernel.")]
-build-iso: build-kernel
+build-iso: make-limine build-kernel
     mkdir -p {{ out_path }}/boot
     mkdir -p {{ out_path }}/boot/limine
     mkdir -p {{ out_path }}/EFI/BOOT

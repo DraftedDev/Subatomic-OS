@@ -6,12 +6,14 @@ use pc_keyboard::layouts::{
     Azerty, Colemak, DVP104Key, De105Key, Dvorak104Key, Jis109Key, Uk105Key, Us104Key,
 };
 use pc_keyboard::{
-    DecodedKey, HandleControl, KeyCode, Keyboard, KeyboardLayout, Modifiers, ScancodeSet1,
+    DecodedKey, HandleControl, KeyCode, KeyboardLayout, Modifiers, PS2Keyboard, PhysicalKeyboard,
+    ScancodeSet1,
 };
 use x86_64::structures::idt::InterruptStackFrame;
 
 /// The global keyboard. It's only ever mutated during interrupts, so it's safe to be `mut`.
-static mut KEYBOARD: Keyboard<KeyLayout, ScancodeSet1> = Keyboard::new(
+// TODO: Switch to USB keyboard.
+static mut KEYBOARD: PS2Keyboard<KeyLayout, ScancodeSet1> = PS2Keyboard::new(
     ScancodeSet1::new(),
     KeyLayout::De105Key,
     HandleControl::MapLettersToUnicode,
@@ -21,7 +23,7 @@ static mut KEYBOARD: Keyboard<KeyLayout, ScancodeSet1> = Keyboard::new(
 pub fn set_layout(layout: KeyLayout) {
     // This is safe, because it's never called inside the interrupt handler.
     unsafe {
-        KEYBOARD = Keyboard::new(
+        KEYBOARD = PS2Keyboard::new(
             ScancodeSet1::new(),
             layout,
             HandleControl::MapLettersToUnicode,
@@ -74,6 +76,19 @@ impl KeyboardLayout for KeyLayout {
             KeyLayout::Azerty => Azerty.map_keycode(keycode, modifiers, handle_ctrl),
             KeyLayout::Colemak => Colemak.map_keycode(keycode, modifiers, handle_ctrl),
             KeyLayout::De105Key => De105Key.map_keycode(keycode, modifiers, handle_ctrl),
+        }
+    }
+
+    fn get_physical(&self) -> PhysicalKeyboard {
+        match self {
+            KeyLayout::DVP104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Dvorak104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Us104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Uk105Key => PhysicalKeyboard::Iso,
+            KeyLayout::Jis109Key => PhysicalKeyboard::Jis,
+            KeyLayout::Azerty => PhysicalKeyboard::Iso,
+            KeyLayout::Colemak => PhysicalKeyboard::Ansi,
+            KeyLayout::De105Key => PhysicalKeyboard::Iso,
         }
     }
 }

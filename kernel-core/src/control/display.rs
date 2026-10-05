@@ -22,18 +22,22 @@ impl Display {
     /// Create a new display instance.
     pub fn new() -> Self {
         // TODO: config without display?
-        let fb = unsafe { requests::framebuffer() }
+        let fb = *requests::framebuffer()
             .framebuffers()
+            .iter()
             .next()
             .expect("No display found.");
 
         let slice = unsafe {
-            core::slice::from_raw_parts_mut(fb.addr(), fb.pitch() as usize * fb.height() as usize)
+            core::slice::from_raw_parts_mut(
+                fb.address() as *mut u8,
+                fb.pitch as usize * fb.height as usize,
+            )
         };
 
         Self {
-            width: fb.width() as usize,
-            height: fb.height() as usize,
+            width: fb.width as usize,
+            height: fb.height as usize,
             fb: slice,
         }
     }

@@ -8,6 +8,7 @@ use acpi::{Handle, Handler, HpetInfo, PciAddress, PhysicalMapping};
 use core::ptr::NonNull;
 use kernel_core::requests;
 use kernel_core::sync::init::InitData;
+use kernel_core::time::Timestamp;
 use kernel_core::wrapper::SendSyncWrapper;
 use x86_64::PhysAddr;
 use x86_64::structures::paging::PageTableFlags;
@@ -26,7 +27,7 @@ pub static HPET_CLOCK_TICK_UNIT: InitData<u64> = InitData::uninit();
 /// Must only be called once before any ACPI use.
 pub unsafe fn init() {
     unsafe {
-        let rsdp = requests::rsdp().address();
+        let rsdp = requests::rsdp().address as usize;
 
         let tables =
             acpi::AcpiTables::from_rsdp(AcpiHandler, rsdp).expect("failed to find acpi tables.");
@@ -226,7 +227,9 @@ impl Handler for AcpiHandler {
     }
 
     fn nanos_since_boot(&self) -> u64 {
-        requests::boot_date().timestamp().as_nanos() as u64
+        Timestamp::from_seconds(requests::boot_date().timestamp)
+            .expect("Failed to build timestamp from limine boot time")
+            .as_nanoseconds() as u64
     }
 
     fn stall(&self, _microseconds: u64) {

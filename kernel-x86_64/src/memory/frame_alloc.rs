@@ -2,7 +2,7 @@ use crate::memory::phys_mem_offset;
 use core::ptr;
 use kernel_core::requests;
 use kernel_core::sync::mutex::Mutex;
-use limine::memory_map::EntryType;
+use limine::memmap::MEMMAP_USABLE;
 use x86_64::PhysAddr;
 use x86_64::structures::paging::{FrameAllocator, PhysFrame, Size4KiB};
 
@@ -33,7 +33,7 @@ impl PageFrameAllocator {
 
         for region in requests::memory_map().entries() {
             // TODO: reclaim acpi/bootloader memory
-            if region.entry_type != EntryType::USABLE {
+            if region.type_ != MEMMAP_USABLE {
                 continue;
             }
 
