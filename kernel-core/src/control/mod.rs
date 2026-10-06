@@ -2,12 +2,13 @@ use crate::collections::FastMap;
 use crate::control::app::{App, AppCommand};
 use crate::control::command::{Command, builtin};
 use crate::control::display::{DISPLAY, Display};
-use crate::control::input::{INPUT, InputControl};
+use crate::control::input::{INPUT, InputControl, ModifierFlags};
 use crate::sync::init::InitData;
 use crate::sync::mutex::Mutex;
 use crate::terminal::TerminalBox;
 use crate::wrapper::SendSyncWrapper;
 use alloc::boxed::Box;
+use alloc::collections::VecDeque;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -100,7 +101,7 @@ impl Control {
                 inner.handle_input(&self.queue);
                 inner.render();
 
-                inner.set_dirty(true);
+                inner.set_dirty(false);
             }
         });
 
@@ -172,12 +173,15 @@ impl Control {
 pub struct InnerControl {
     terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
     lines: Vec<Vec<(char, Style)>>,
-    string_buf: String, // temporary buffer for yet-to-be-parsed strings
+    string_buf: String,
     command: String,
     scroll_offset: usize,
     max_width: usize,
     app: Option<Box<dyn App>>,
     dirty: bool,
+    history: VecDeque<String>,
+    history_index: Option<usize>,
+    saved_draft: String,
 }
 
 impl InnerControl {
@@ -190,6 +194,7 @@ impl InnerControl {
     const STRING_BUF_CAPACITY: usize = 256;
     const PARSE_CAPACITY: usize = 4;
     const COMMAND_BUF_CAPACITY: usize = 16;
+    const HISTORY_CAPACITY: usize = 16;
     const EXPANDED_TAB: &'static str = "    ";
     const BACKGROUND: Color = Color::DarkerGray;
     const FOREGROUND: Color = Color::BrighterGray;
@@ -229,12 +234,15 @@ impl InnerControl {
             max_width,
             app: None,
             dirty: false,
+            history: VecDeque::with_capacity(Self::HISTORY_CAPACITY),
+            history_index: None,
+            saved_draft: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
         }
     }
 
     /// Returns whether the control state is dirty.
     pub fn is_dirty(&self) -> bool {
-        self.dirty || !INPUT.get().is_empty()
+        self.dirty || !INPUT.get().is_empty() || self.app.is_some()
     }
 
     /// Sets the dirty state of the control.
@@ -251,8 +259,29 @@ impl InnerControl {
         }
     }
 
+    /// Adds a command to history and resets history navigation state.
+    pub fn add_to_history(&mut self, command: String) {
+        let trimmed = command.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+
+        if self.history.front().map(|s| s.as_str()) != Some(trimmed) {
+            if self.history.len() == Self::HISTORY_CAPACITY {
+                self.history.pop_back();
+            }
+            self.history.push_front(command);
+        }
+
+        self.history_index = None;
+        self.saved_draft.clear();
+    }
+
     fn handle_input(&mut self, queue: &SegQueue<String>) {
         let input = INPUT.get();
+
+        let mods = input.modifiers();
+
         while let Some(key) = input.pop() {
             let mut command = AppCommand::Continue;
 
@@ -268,36 +297,80 @@ impl InnerControl {
                             self.string_buf
                                 .push_str(&format!("{} {command}\n", Self::COMMAND_PREFIX));
 
+                            self.add_to_history(command.clone());
                             queue.push(command);
                         }
 
                         // Backspace => delete last character
                         '\x08' => {
                             self.command.pop();
+                            self.scroll_offset = 0;
                         }
 
                         // Else => push to command
-                        _ => self.command.push(ch),
+                        _ => {
+                            self.command.push(ch);
+                            self.scroll_offset = 0;
+                        }
                     },
 
                     DecodedKey::RawKey(code) => match code {
-                        // Scroll up => increment scroll offset
                         KeyCode::ArrowUp => {
-                            self.scroll_offset = self.scroll_offset.saturating_add(1)
+                            if mods.intersects(ModifierFlags::L_CTRL | ModifierFlags::R_CTRL) {
+                                self.scroll_offset = self.scroll_offset.saturating_add(1);
+                            } else {
+                                self.navigate_history_up();
+                            }
                         }
 
-                        // Scroll down => decrement scroll offset
                         KeyCode::ArrowDown => {
-                            self.scroll_offset = self.scroll_offset.saturating_sub(1)
+                            if mods.intersects(ModifierFlags::L_CTRL | ModifierFlags::R_CTRL) {
+                                self.scroll_offset = self.scroll_offset.saturating_sub(1);
+                            } else {
+                                self.navigate_history_down();
+                            }
                         }
 
-                        // Else => do nothing
                         _ => (),
                     },
                 }
             }
 
             self.handle_command(command);
+        }
+    }
+
+    fn navigate_history_up(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            None => {
+                self.saved_draft = self.command.clone();
+                self.history_index = Some(0);
+                self.command = self.history[0].clone();
+            }
+            Some(idx) => {
+                if idx + 1 < self.history.len() {
+                    let next_idx = idx + 1;
+                    self.history_index = Some(next_idx);
+                    self.command = self.history[next_idx].clone();
+                }
+            }
+        }
+    }
+
+    fn navigate_history_down(&mut self) {
+        if let Some(idx) = self.history_index {
+            if idx > 0 {
+                let next_idx = idx - 1;
+                self.history_index = Some(next_idx);
+                self.command = self.history[next_idx].clone();
+            } else {
+                self.history_index = None;
+                self.command = core::mem::take(&mut self.saved_draft);
+            }
         }
     }
 

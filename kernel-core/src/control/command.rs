@@ -102,6 +102,7 @@ pub mod builtin {
         CONTROL.get().run(|ctrl| {
             ctrl.lines.clear();
             ctrl.string_buf.clear();
+            ctrl.set_dirty(true);
         });
 
         Ok(())

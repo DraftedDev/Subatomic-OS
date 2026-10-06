@@ -7,6 +7,9 @@
 
 extern crate alloc;
 
+pub use bitflags;
+pub use portable_atomic as atomics;
+
 /// Contains the [api::KernelApi] and related types.
 pub mod api;
 
