@@ -49,7 +49,7 @@ get-ovmf:
 
 # [doc("Run the kernel ISO in QEMU.")]
 qemu: get-ovmf build-iso
-    qemu-system-{{ arch }} \
+    @qemu-system-{{ arch }} \
         -M q35 \
         -drive if=pflash,unit=0,format=raw,file=./target/ovmf/ovmf-code-{{ arch }}.fd,readonly=on \
         -drive if=pflash,unit=1,format=raw,file=./target/ovmf/ovmf-vars-{{ arch }}.fd \
@@ -58,7 +58,7 @@ qemu: get-ovmf build-iso
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
         -display sdl,gl=on \
         -machine q35 \
-        {{ qemu_flags }}
+        {{ qemu_flags }} || [ $? -eq 33 ]
 
 # [doc("Update the ISO with the new kernel binary.")]
 update-iso: build-kernel

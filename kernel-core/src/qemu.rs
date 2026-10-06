@@ -1,4 +1,3 @@
-// TODO: remove '--features qemu-exit' from just-file
 use crate::api;
 
 const EXIT_PORT: u16 = 0xf4;
