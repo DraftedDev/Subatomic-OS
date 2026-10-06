@@ -4,7 +4,7 @@ use core::ops::RangeInclusive;
 ///
 /// # Comparison of Kernel RNG Algorithms
 ///
-/// | Feature | PCG32 | Xoshiro256** | ChaCha20 |
+/// | Feature | PCG32 | Xoshiro256 | ChaCha20 |
 /// | :--- | :--- | :--- | :--- |
 /// | **State Size** | **64-bit** | 256-bit | 512-bit |
 /// | **Secure** | No | No | **Yes** |
