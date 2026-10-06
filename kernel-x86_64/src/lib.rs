@@ -7,11 +7,13 @@ extern crate alloc;
 
 use core::alloc::GlobalAlloc;
 
-use kernel_core::api;
+use kernel_core::api::{self, InterruptsApi};
 use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
 use kernel_core::info::KernelApiInfo;
 use x86_64::structures::paging::PageTableFlags;
 use x86_64::{PhysAddr, VirtAddr};
+
+use crate::interrupts::apic;
 
 pub mod acpi;
 pub mod commands;
@@ -31,9 +33,14 @@ pub const KERNEL_API: KernelApi = KernelApi {
     init: init::init,
     setup: init::setup,
     halt: x86_64::instructions::hlt,
-    disable_interrupts: x86_64::instructions::interrupts::disable,
-    enable_interrupts: x86_64::instructions::interrupts::enable,
     seed: |quality| if quality { seed_quality() } else { seed_fast() },
+    interrupts: InterruptsApi {
+        disable_interrupts: x86_64::instructions::interrupts::disable,
+        enable_interrupts: x86_64::instructions::interrupts::enable,
+        end_of_interrupt: || unsafe {
+            apic::end_of_interrupt();
+        },
+    },
     port: PortApi {
         read_u8: port::read_u8,
         write_u8: port::write_u8,

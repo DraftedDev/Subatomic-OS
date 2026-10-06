@@ -20,7 +20,7 @@ pub trait Rng {
     where
         Self: Sized,
     {
-        Self::new_seed(crate::api::seed(quality))
+        Self::new_seed(crate::api::kernel().seed(quality))
     }
 
     /// Create a new RNG with the given `u64` seed.

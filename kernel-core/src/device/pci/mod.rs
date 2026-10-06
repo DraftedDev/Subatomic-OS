@@ -1,3 +1,4 @@
+use crate::api;
 use crate::collections::FastMap;
 use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
@@ -31,6 +32,7 @@ pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 /// Initialize the global [PCI_HUB] with the given ECAM base address.
 ///
 /// # Safety
+///
 /// This function is unsafe, because the caller must guarantee
 /// that this is called before any [PciDeviceHub] operations and only once.
 pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
@@ -43,6 +45,8 @@ pub struct PciDeviceHub {
     drivers: FastMap<&'static str, Box<dyn PciDriver>>,
     driver_devices: FastMap<&'static str, Vec<u32>>,
     config: PciConfig,
+    vector_map: [Vec<InterruptBinding>; 256],
+    allocated_vectors: [bool; 256],
 }
 
 impl PciDeviceHub {
@@ -53,12 +57,74 @@ impl PciDeviceHub {
             drivers: FastMap::default(),
             driver_devices: FastMap::default(),
             config: PciConfig::new(ecam_base),
+            vector_map: core::array::from_fn(|_| Vec::new()),
+            allocated_vectors: [false; 256],
         }
     }
 
     /// Get all device IDs that the given driver operate on.
     pub fn get_driver_devices(&self, driver: &'static str) -> Option<&Vec<u32>> {
         self.driver_devices.get(driver)
+    }
+
+    /// Allocates an unused vector and configures the target device for MSI interrupts.
+    pub fn attach_msi_interrupt(
+        &mut self,
+        device_id: u32,
+        driver_name: &'static str,
+        target_apic_id: u8,
+    ) -> Result<u8, PciError> {
+        let device = self
+            .devices
+            .get(&device_id)
+            .ok_or(PciError::DeviceNotFound)?;
+
+        // Find a free vector between 32 and 255 (0..31 are x86 CPU exceptions)
+        let vector = (32..=255)
+            .find(|&v| !self.allocated_vectors[v])
+            .ok_or(PciError::DriverHubFull)? as u8;
+
+        // Try programming MSI on hardware
+        if !device.enable_msi(vector, target_apic_id) {
+            return Err(PciError::MsiUnsupported);
+        }
+
+        // Lock in vector allocation & save binding
+        self.allocated_vectors[vector as usize] = true;
+        self.vector_map[vector as usize].push(InterruptBinding {
+            driver_name,
+            device_id,
+        });
+
+        Ok(vector)
+    }
+
+    /// Entry point triggered by CPU IDT stubs when a PCI interrupt vector fires.
+    pub fn dispatch_interrupt(&self, vector: u8) {
+        let bindings = &self.vector_map[vector as usize];
+
+        for binding in bindings {
+            if let (Some(driver), Some(device)) = (
+                self.drivers.get(binding.driver_name),
+                self.devices.get(&binding.device_id),
+            ) && driver.handle_interrupt(device) == InterruptStatus::Handled
+            {
+                break;
+            }
+        }
+
+        unsafe {
+            api::interrupts().end_of_interrupt();
+        }
+    }
+
+    /// Allocate a device vector.
+    pub fn allocate_vector(&mut self) -> Option<u8> {
+        (32..=255).find(|&v| !self.is_vector_reserved(v) && !self.allocated_vectors[v as usize])
+    }
+
+    fn is_vector_reserved(&self, vector: u8) -> bool {
+        matches!(vector, 0..=33 | 51 | 63)
     }
 
     /// Helper: enumerates one function of a device
@@ -351,6 +417,72 @@ impl PciDevice {
             }
         }
     }
+
+    /// Enables MSI for this device and programs it to target a specific CPU vector and Local APIC ID.
+    ///
+    /// Returns [true] if MSI capability was found and enabled successfully.
+    pub fn enable_msi(&self, vector: u8, apic_id: u8) -> bool {
+        // Find MSI capability offset (Cap ID 0x05 for MSI)
+        let msi_offset = match self.find_capability_offset(0x05) {
+            Some(offset) => offset,
+            None => return false,
+        };
+
+        // Read Message Control Register (16-bit at offset + 2)
+        let msg_ctrl = unsafe { self.config.read(self.addr, msi_offset + 2) } as u16;
+
+        // Message Address: 0xFEE00000 | (apic_id << 12)
+        let msg_addr: u32 = 0xFEE0_0000 | ((apic_id as u32) << 12);
+        unsafe {
+            self.config.write(self.addr, msi_offset + 4, msg_addr);
+        }
+
+        let is_64bit = (msg_ctrl & (1 << 7)) != 0;
+        let data_offset = if is_64bit {
+            msi_offset + 12
+        } else {
+            msi_offset + 8
+        };
+
+        // Message Data: Vector number + Delivery Mode (000 = Fixed)
+        let msg_data: u32 = vector as u32;
+        unsafe {
+            self.config.write(self.addr, data_offset, msg_data);
+        }
+
+        // Enable MSI by setting bit 0 of Message Control Register
+        let updated_ctrl = (msg_ctrl | 0x0001) as u32;
+        unsafe {
+            self.config.write(self.addr, msi_offset + 2, updated_ctrl);
+        }
+
+        true
+    }
+
+    fn find_capability_offset(&self, cap_id: u8) -> Option<u16> {
+        // Read Status register (offset 0x06) to verify Capabilities List bit (bit 4) is set
+        let status = unsafe { self.config.read(self.addr, 0x06) >> 16 } as u16;
+        if (status & (1 << 4)) == 0 {
+            return None;
+        }
+
+        // Read Capabilities Pointer (offset 0x34)
+        let mut cap_ptr = (unsafe { self.config.read(self.addr, 0x34) } & 0xFF) as u16;
+
+        while cap_ptr != 0 {
+            let cap_header = unsafe { self.config.read(self.addr, cap_ptr) };
+            let current_id = (cap_header & 0xFF) as u8;
+
+            if current_id == cap_id {
+                return Some(cap_ptr);
+            }
+
+            // Move to next capability pointer in line
+            cap_ptr = ((cap_header >> 8) & 0xFF) as u16;
+        }
+
+        None
+    }
 }
 
 impl Device for PciDevice {
@@ -373,6 +505,28 @@ pub trait PciDriver: Send + Sync + 'static {
     /// Initialize the device driver.
     fn init(&self, device: &PciDevice);
 
+    /// Handle a device interrupt.
+    fn handle_interrupt(&self, _: &PciDevice) -> InterruptStatus {
+        InterruptStatus::Ignored
+    }
+
     /// Destroys the device driver.
     fn destroy(&self, device: &PciDevice);
+}
+
+/// An interrupt status returned [PciDriver::handle_interrupt].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InterruptStatus {
+    /// The interrupt originated from this device and was processed.
+    Handled,
+    /// The interrupt was not generated by this device.
+    Ignored,
+}
+
+/// A binding for a device interrupt.
+pub struct InterruptBinding {
+    /// The driver name.
+    pub driver_name: &'static str,
+    /// The device ID.
+    pub device_id: u32,
 }

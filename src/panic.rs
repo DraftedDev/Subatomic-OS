@@ -32,7 +32,7 @@ fn panic(info: &PanicInfo) -> ! {
     }
 
     loop {
-        api::halt()
+        api::kernel().halt()
     }
 }
 

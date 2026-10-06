@@ -10,7 +10,7 @@ pub extern "x86-interrupt" fn x87_floating_point_handler(frame: InterruptStackFr
     log::error!("Encountered x87 Floating Point Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -30,7 +30,7 @@ pub extern "x86-interrupt" fn vmm_communication_exception_handler(
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -42,7 +42,7 @@ pub extern "x86-interrupt" fn virtualization_exception_handler(frame: InterruptS
     log::error!("Encountered Virtualization Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -59,7 +59,7 @@ pub extern "x86-interrupt" fn stack_segment_fault_handler(frame: InterruptStackF
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -71,7 +71,7 @@ pub extern "x86-interrupt" fn simd_floating_point_handler(frame: InterruptStackF
     log::error!("Encountered SIMD Floating Point Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -88,7 +88,7 @@ pub extern "x86-interrupt" fn segment_not_present_handler(frame: InterruptStackF
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -101,7 +101,7 @@ pub extern "x86-interrupt" fn security_exception_handler(frame: InterruptStackFr
     log::error!("Security Exception with code {:#x}: {:#?}", code, frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -124,7 +124,7 @@ pub extern "x86-interrupt" fn page_fault_handler(
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -136,7 +136,7 @@ pub extern "x86-interrupt" fn non_maskable_interrupt_handler(frame: InterruptSta
     log::error!("Encountered Non Maskable Interrupt Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -148,7 +148,7 @@ pub extern "x86-interrupt" fn machine_check_handler(frame: InterruptStackFrame) 
     log::error!("Machine Check Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -161,7 +161,7 @@ pub extern "x86-interrupt" fn invalid_tss_handler(frame: InterruptStackFrame, co
     log::error!("Invalid TSS Exception with code {:#x}: {:#?}", code, frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -173,7 +173,7 @@ pub extern "x86-interrupt" fn invalid_opcode_handler(frame: InterruptStackFrame)
     log::error!("Encountered Invalid Opcode Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -185,7 +185,7 @@ pub extern "x86-interrupt" fn hv_injection_exception_handler(frame: InterruptSta
     log::error!("Encountered Hyper-V Injection Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -205,7 +205,7 @@ pub extern "x86-interrupt" fn general_protection_fault_handler(
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -218,7 +218,7 @@ pub extern "x86-interrupt" fn double_fault_handler(frame: InterruptStackFrame, c
     log::error!("Double Fault Exception with code {:#x}: {:#?}", code, frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -230,7 +230,7 @@ pub extern "x86-interrupt" fn divide_error_handler(frame: InterruptStackFrame) {
     log::error!("Encountered Divide Error Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -242,7 +242,7 @@ pub extern "x86-interrupt" fn device_not_available_handler(frame: InterruptStack
     log::error!("Encountered Device Not Available Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -262,7 +262,7 @@ pub extern "x86-interrupt" fn cp_protection_exception_handler(
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -287,7 +287,7 @@ pub extern "x86-interrupt" fn alignment_check_handler(frame: InterruptStackFrame
     );
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -299,7 +299,7 @@ pub extern "x86-interrupt" fn bound_range_exceeded_handler(frame: InterruptStack
     log::error!("Encountered Bound Range Exceeded Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -311,7 +311,7 @@ pub extern "x86-interrupt" fn overflow_handler(frame: InterruptStackFrame) {
     log::error!("Encountered Overflow Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }
 
@@ -323,6 +323,6 @@ pub extern "x86-interrupt" fn debug_handler(frame: InterruptStackFrame) {
     log::error!("Encountered Debug Exception: {:#?}", frame);
 
     loop {
-        kernel_core::api::halt();
+        kernel_core::api::kernel().halt();
     }
 }

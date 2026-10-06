@@ -20,6 +20,7 @@ pub const fn kernel() -> KernelApi {
 /// Sets the global [KernelApi].
 ///
 /// # Safety
+///
 /// This must only be called exactly once before any API usage.
 pub const unsafe fn set(kernel: KernelApi) -> KernelApi {
     unsafe { *API.init(kernel) }
@@ -30,9 +31,9 @@ pub const fn info() -> KernelApiInfo {
     kernel().info
 }
 
-/// Executes the halt instruction to halt the CPU.
-pub fn halt() {
-    (kernel().halt)();
+/// Get the global [InterruptsApi].
+pub const fn interrupts() -> InterruptsApi {
+    kernel().interrupts
 }
 
 /// Get the global [PortApi].
@@ -50,29 +51,11 @@ pub const fn time() -> TimeApi {
     kernel().time
 }
 
-/// Disable interrupts on the system.
-pub fn disable_interrupts() {
-    (kernel().disable_interrupts)();
-}
-
-/// Enable interrupts on the system.
-pub fn enable_interrupts() {
-    (kernel().enable_interrupts)();
-}
-
-/// Get a seed for the random number generator.
-///
-/// The `quality` parameter specified if the seed should be high quality.
-/// High quality seeds are more secure, but are usually slower to generate.
-pub fn seed(quality: bool) -> u64 {
-    (kernel().seed)(quality)
-}
-
 /// Executes the given function without interrupts.
 pub fn without_interrupts<R, F: FnOnce() -> R>(f: F) -> R {
-    disable_interrupts();
+    (interrupts().disable_interrupts)();
     let result = f();
-    enable_interrupts();
+    (interrupts().enable_interrupts)();
     result
 }
 
@@ -93,18 +76,62 @@ pub struct KernelApi {
     pub setup: unsafe fn(),
     /// The halt function to move the CPU into an idle state.
     pub halt: fn(),
-    /// Disable interrupts on the system.
-    pub disable_interrupts: fn(),
-    /// Enable interrupts on the system.
-    pub enable_interrupts: fn(),
     /// Generate a seed for the random number generator.
     pub seed: fn(quality: bool) -> u64,
+    /// The [InterruptsApi] for interrupt control.
+    pub interrupts: InterruptsApi,
     /// The [PortApi] for port communication.
     pub port: PortApi,
     /// The [MemoryApi] for memory management.
     pub memory: MemoryApi,
     /// The [TimeApi] for time reading.
     pub time: TimeApi,
+}
+
+impl KernelApi {
+    /// Halts the CPU into an idle state.
+    pub fn halt(&self) {
+        (self.halt)()
+    }
+
+    /// Generate a seed for the random number generator.
+    pub fn seed(&self, quality: bool) -> u64 {
+        (self.seed)(quality)
+    }
+}
+
+/// The interrupt API for the kernel.
+///
+/// Used to control interrupts.
+#[derive(Copy, Clone)]
+pub struct InterruptsApi {
+    /// Disable interrupts on the system.
+    pub disable_interrupts: fn(),
+    /// Enable interrupts on the system.
+    pub enable_interrupts: fn(),
+    /// Signals the end of the current interrupt.
+    pub end_of_interrupt: unsafe fn(),
+}
+
+impl InterruptsApi {
+    /// Disable interrupts on the system.
+    pub fn disable_interrupts(&self) {
+        (self.disable_interrupts)()
+    }
+
+    /// Enable interrupts on the system.
+    pub fn enable_interrupts(&self) {
+        (self.enable_interrupts)()
+    }
+
+    /// Signals the end of the current interrupt.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure, this function is called inside the correct interrupt context.
+    pub unsafe fn end_of_interrupt(&self) {
+        (self.enable_interrupts)()
+    }
 }
 
 /// Port API of the kernel.
@@ -130,6 +157,7 @@ impl PortApi {
     /// Read a `u8` value from a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u8(&self, port: u16) -> u8 {
         unsafe { (self.read_u8)(port) }
@@ -138,6 +166,7 @@ impl PortApi {
     /// Write a `u8` value to a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u8(&self, port: u16, value: u8) {
         unsafe { (self.write_u8)(port, value) }
@@ -146,6 +175,7 @@ impl PortApi {
     /// Read a `u16` value from a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u16(&self, port: u16) -> u16 {
         unsafe { (self.read_u16)(port) }
@@ -154,6 +184,7 @@ impl PortApi {
     /// Write a `u16` value to a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u16(&self, port: u16, value: u16) {
         unsafe { (self.write_u16)(port, value) }
@@ -162,6 +193,7 @@ impl PortApi {
     /// Read a `u32` value from a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn read_u32(&self, port: u16) -> u32 {
         unsafe { (self.read_u32)(port) }
@@ -170,6 +202,7 @@ impl PortApi {
     /// Write a `u32` value to a port.
     ///
     /// # Safety
+    ///
     /// Port I/O is generally unsafe, since unintended side effects may occur.
     pub unsafe fn write_u32(&self, port: u16, value: u32) {
         unsafe { (self.write_u32)(port, value) }
@@ -208,6 +241,7 @@ impl MemoryApi {
     /// See [core::alloc::GlobalAlloc::alloc].
     ///
     /// # Safety
+    ///
     /// The specified layout must be correct.
     pub unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         unsafe { (self.alloc)(layout) }
@@ -216,6 +250,7 @@ impl MemoryApi {
     /// See [core::alloc::GlobalAlloc::realloc].
     ///
     /// # Safety
+    ///
     /// The specified layout must be correct.
     pub unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         unsafe { (self.alloc_zeroed)(layout) }
@@ -224,6 +259,7 @@ impl MemoryApi {
     /// See [core::alloc::GlobalAlloc::dealloc].
     ///
     /// # Safety
+    ///
     /// The specified layout and pointer must be correct.
     pub unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         unsafe { (self.dealloc)(ptr, layout) }
@@ -232,6 +268,7 @@ impl MemoryApi {
     /// See [core::alloc::GlobalAlloc::realloc].
     ///
     /// # Safety
+    ///
     /// The specified pointer, layout and new size must be correct.
     pub unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         unsafe { (self.realloc)(ptr, layout, new_size) }
@@ -240,9 +277,8 @@ impl MemoryApi {
     /// Translates a physical address to a virtual address.
     ///
     /// # Safety
+    ///
     /// The specified address must be valid.
-    // TODO: make this return Option or Result?
-    // TODO 2: refine memory api to use either usize or *mut u8 as pointer types
     pub unsafe fn translate(&self, addr: usize) -> usize {
         unsafe { (self.translate)(addr) }
     }
@@ -250,6 +286,7 @@ impl MemoryApi {
     /// Maps the given physical address to a virtual address.
     ///
     /// # Safety
+    ///
     /// The specified address must be valid.
     pub unsafe fn map_to(&self, addr: usize, writable: bool, cache: bool) -> usize {
         unsafe { (self.map_to)(addr, writable, cache) }

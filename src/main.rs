@@ -45,7 +45,7 @@ unsafe extern "C" fn kernel_main() -> ! {
     loop {
         CONTROL.get().update();
         module::run_update();
-        api::halt();
+        api::kernel().halt();
     }
 }
 
@@ -60,7 +60,7 @@ unsafe fn init(filter: LevelFilter) {
     log::info!("Checking limine base revision support...");
     assert!(BASE_REVISION.is_supported());
 
-    api::disable_interrupts();
+    api::interrupts().disable_interrupts();
 
     log::info!("Initializing kernel...");
     unsafe {
@@ -90,7 +90,7 @@ unsafe fn init(filter: LevelFilter) {
     log::info!("Initializing kernel modules...");
     module::run_init();
 
-    api::enable_interrupts();
+    api::interrupts().enable_interrupts();
 }
 
 fn print_intro() {

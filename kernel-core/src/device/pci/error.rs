@@ -11,6 +11,10 @@ pub enum PciError {
     DriverAlreadyRegistered,
     /// The driver is not registered.
     DriverNotFound,
+    /// The driver hub is full and no more devices may be registered.
+    DriverHubFull,
+    /// The target device does not support MSI.
+    MsiUnsupported,
 }
 
 impl Display for PciError {
@@ -20,6 +24,8 @@ impl Display for PciError {
             PciError::DeviceNotFound => write!(f, "Device not found"),
             PciError::DriverAlreadyRegistered => write!(f, "Driver already registered"),
             PciError::DriverNotFound => write!(f, "Driver not found"),
+            PciError::DriverHubFull => write!(f, "Driver hub is full"),
+            PciError::MsiUnsupported => write!(f, "MSI is unsupported on this device"),
         }
     }
 }

@@ -265,7 +265,7 @@ pub mod builtin {
                         "uint" => log::info!("{}", $rng.uint(u32::MIN..=u32::MAX)),
                         "float" => log::info!("{}", $rng.float()),
                         "bool" => log::info!("{}", $rng.bool()),
-                        "seed" => log::info!("{}", api::seed(quality)),
+                        "seed" => log::info!("{}", api::kernel().seed(quality)),
 
                         _ => result = Err(format!(
                             "Invalid type: {}. Available: 'seed', 'int', 'uint', 'float' and 'bool'.",
