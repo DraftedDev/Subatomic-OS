@@ -1,6 +1,6 @@
 use crate::memory::{frame_alloc, phys_mem_offset};
 use x86_64::PhysAddr;
-use x86_64::structures::paging::{PhysFrame, Size4KiB};
+use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB};
 
 /// Allocates a DMA page.
 ///
@@ -16,7 +16,7 @@ pub unsafe fn dma_alloc(pages: usize) -> Option<(usize, usize)> {
     let offset = phys_mem_offset();
 
     if pages == 1 {
-        let frame = frame_alloc::get().allocate_frame_internal()?;
+        let frame = frame_alloc::get().allocate_frame()?;
         let p_addr = frame.start_address().as_u64() as usize;
         let v_addr = p_addr + offset as usize;
 
@@ -55,7 +55,7 @@ fn allocate_contiguous_dma(pages: usize, offset: u64) -> Option<(usize, usize)> 
     let mut frames = alloc::vec::Vec::with_capacity(pages);
 
     for _ in 0..pages {
-        if let Some(frame) = alloc.allocate_frame_internal() {
+        if let Some(frame) = alloc.allocate_frame() {
             frames.push(frame);
         } else {
             // Out of memory: rollback
