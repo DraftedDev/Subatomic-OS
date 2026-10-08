@@ -54,11 +54,17 @@ pub unsafe fn setup() {
             }
         }
 
+        kernel_core::control::CONTROL.get().update();
+
         log::info!("Initializing Advanced Configuration and Power Interface...");
         crate::acpi::init();
 
+        kernel_core::control::CONTROL.get().update();
+
         log::info!("Initializing Advanced Programmable Interrupt Controller...");
         apic::init();
+
+        kernel_core::control::CONTROL.get().update();
 
         log::info!("Initializing PCI Device Hub...");
         {
