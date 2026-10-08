@@ -256,8 +256,10 @@ impl InnerControl {
     /// If there already was another app active, it will be exited.
     pub fn set_app(&mut self, app: impl App) {
         if let Some(mut app) = self.app.replace(Box::new(app)) {
-            app.exit()
+            app.exit();
         }
+
+        self.set_dirty(true);
     }
 
     /// Adds a command to history and resets history navigation state.
