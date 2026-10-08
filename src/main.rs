@@ -5,11 +5,10 @@
 
 extern crate alloc;
 
-use kernel_core::control::CONTROL;
 use kernel_core::control::display::{DISPLAY, Display};
 use kernel_core::info::KernelInfo;
 use kernel_core::requests::BASE_REVISION;
-use kernel_core::{api, control, logger, module};
+use kernel_core::{api, control, logger, module, scheduler};
 use log::LevelFilter;
 
 pub mod allocator;
@@ -42,10 +41,18 @@ unsafe extern "C" fn kernel_main() -> ! {
     log::info!("Kernel setup completed. Continuing...");
     print_intro();
 
-    loop {
-        CONTROL.get().update();
+    scheduler::kernel::KERNEL_SCHEDULER.spawn(|| {
+        control::CONTROL.get().update();
+        true
+    });
+
+    scheduler::kernel::KERNEL_SCHEDULER.spawn(|| {
         module::run_update();
-        api::kernel().halt();
+        true
+    });
+
+    loop {
+        scheduler::kernel::KERNEL_SCHEDULER.run();
     }
 }
 

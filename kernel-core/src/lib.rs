@@ -55,3 +55,6 @@ pub mod rand;
 
 /// Contains kernel module infrastructure.
 pub mod module;
+
+/// Contains scheduling logic.
+pub mod scheduler;
