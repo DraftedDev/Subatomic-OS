@@ -74,6 +74,9 @@ pub unsafe fn setup() {
             pci::init(mapped.as_u64() as usize)
                 .run_mut(|hub| hub.init())
                 .expect("Failed to initialize PCI Hub");
+
+            pci::add_builtin_drivers()
+                .unwrap_or_else(|err| log::error!("Failed to add driver: {err}"));
         }
     }
 }

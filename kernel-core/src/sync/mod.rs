@@ -1,3 +1,5 @@
+pub use spin::once::Once as OnceLock;
+
 /// Contains the [init::InitData] type.
 pub mod init;
 

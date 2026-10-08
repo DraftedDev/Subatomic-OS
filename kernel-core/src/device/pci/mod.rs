@@ -3,6 +3,7 @@ use crate::collections::FastMap;
 use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
 use crate::device::pci::config::PciConfig;
+use crate::device::pci::drivers::virtio;
 use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
 use crate::sync::init::InitData;
@@ -26,6 +27,12 @@ pub mod config;
 /// Contains the [PciError] type.
 pub mod error;
 
+/// Contains built-in PCI drivers.
+pub mod drivers;
+
+/// A hardware abstraction layer for PCI devices.
+pub mod hal;
+
 /// The global [PciDeviceHub].
 pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 
@@ -37,6 +44,13 @@ pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 /// that this is called before any [PciDeviceHub] operations and only once.
 pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
     unsafe { PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base))) }
+}
+
+/// Add built-in drivers to the global [PCI_HUB].
+pub fn add_builtin_drivers() -> Result<(), PciError> {
+    PCI_HUB
+        .get()
+        .run_mut(|hub| hub.register(Box::new(virtio::gpu::VirtioGpuDriver::new())))
 }
 
 /// The device hub to control all PCI devices.
@@ -60,6 +74,28 @@ impl PciDeviceHub {
             vector_map: core::array::from_fn(|_| Vec::new()),
             allocated_vectors: [false; 256],
         }
+    }
+
+    /// Add a driver to the hub.
+    ///
+    /// The driver may or may not be used, depending on device availability.
+    pub fn add_driver(&mut self, driver: impl PciDriver) {
+        self.drivers.insert(driver.name(), Box::new(driver));
+    }
+
+    /// Get all registered driver names.
+    pub fn get_drivers(&self) -> Vec<&'static str> {
+        self.drivers.keys().copied().collect()
+    }
+
+    /// Get all devices that the given driver operate on.
+    pub fn devices_of_driver(&self, driver_name: &'static str) -> Option<Vec<&PciDevice>> {
+        self.driver_devices.get(driver_name).map(|device_ids| {
+            device_ids
+                .iter()
+                .filter_map(|id| self.devices.get(id))
+                .collect()
+        })
     }
 
     /// Get all device IDs that the given driver operate on.
@@ -193,7 +229,7 @@ impl DeviceHub for PciDeviceHub {
     fn init(&mut self) -> Result<(), Self::Error> {
         // Modern PCI allows 0 to =255 buses, usually only segment 0 exists
         let segments = [0u16]; // TODO: extend if multiple segments
-        for &segment in &segments {
+        for segment in segments {
             for bus in 0..=255 {
                 self.enumerate_bus(segment, bus)?;
             }
@@ -207,25 +243,62 @@ impl DeviceHub for PciDeviceHub {
             return Err(PciError::DriverAlreadyRegistered);
         }
 
-        let mut devices = Vec::with_capacity(1);
+        let mut bound_device_ids = Vec::new();
+        let device_ids: Vec<u32> = self.devices.keys().copied().collect();
 
-        for (id, device) in &self.devices {
+        for id in device_ids {
+            let device = self.devices.get(&id).ok_or(PciError::DeviceNotFound)?;
+
             if driver.should_bind(device) {
-                driver.init(device);
-                devices.push(*id);
+                log::info!(
+                    "Binding device {} to driver {}",
+                    device.addr(),
+                    driver.name()
+                );
+
+                let msi_vector = if let Some(apic_id) = driver.should_attach_msi(device) {
+                    Some(
+                        // Allocate a vector and configure the device for MSI
+                        {
+                            let driver_name = driver.name();
+                            let device = self.devices.get(&id).ok_or(PciError::DeviceNotFound)?;
+                            let vector = (32..=255)
+                                .find(|&v| !self.allocated_vectors[v])
+                                .ok_or(PciError::DriverHubFull)?
+                                as u8;
+
+                            if !device.enable_msi(vector, apic_id) {
+                                return Err(PciError::MsiUnsupported);
+                            }
+
+                            self.allocated_vectors[vector as usize] = true;
+                            self.vector_map[vector as usize].push(InterruptBinding {
+                                driver_name,
+                                device_id: id,
+                            });
+
+                            Result::<u8, PciError>::Ok(vector)
+                        }?,
+                    )
+                } else {
+                    None
+                };
+
+                driver.init(device, msi_vector)?;
+                bound_device_ids.push(id);
             }
         }
 
-        self.driver_devices.insert(driver.name(), devices);
+        self.driver_devices.insert(driver.name(), bound_device_ids);
         self.drivers.insert(driver.name(), driver);
 
         Ok(())
     }
 
-    fn unregister(&mut self, driver: &'static str) -> Result<Self::Driver, Self::Error> {
+    fn unregister(&mut self, driver_name: &'static str) -> Result<Self::Driver, Self::Error> {
         let driver = self
             .drivers
-            .remove(driver)
+            .remove(driver_name)
             .ok_or(PciError::DriverNotFound)?;
 
         let devices = self
@@ -234,8 +307,20 @@ impl DeviceHub for PciDeviceHub {
             .ok_or(PciError::DriverNotFound)?;
 
         for id in devices {
-            let device = self.get(id)?;
-            driver.destroy(device);
+            if let Ok(device) = self.get(id) {
+                driver.destroy(device)?;
+            }
+
+            // Clean up any MSI vector bindings associated with this device
+            for (vector, bindings) in self.vector_map.iter_mut().enumerate() {
+                bindings.retain(|b| {
+                    let is_match = b.device_id == id && b.driver_name == driver_name;
+                    if is_match {
+                        self.allocated_vectors[vector] = false; // Release vector back to pool
+                    }
+                    !is_match
+                });
+            }
         }
 
         Ok(driver)
@@ -341,6 +426,11 @@ impl PciDevice {
         &self.capabilities
     }
 
+    /// Returns the PCI device configuration space.
+    pub fn config(&self) -> PciConfig {
+        self.config
+    }
+
     /// Enables bus mastering for this PCI device.
     pub fn enable_bus_mastering(&self) {
         const COMMAND_OFFSET: u16 = 0x04;
@@ -418,21 +508,25 @@ impl PciDevice {
         }
     }
 
-    /// Enables MSI for this device and programs it to target a specific CPU vector and Local APIC ID.
-    ///
-    /// Returns [true] if MSI capability was found and enabled successfully.
+    /// Configure the PCI device for MSI.
     pub fn enable_msi(&self, vector: u8, apic_id: u8) -> bool {
-        // Find MSI capability offset (Cap ID 0x05 for MSI)
-        let msi_offset = match self.find_capability_offset(0x05) {
-            Some(offset) => offset,
-            None => return false,
-        };
+        // 1. Try standard MSI (Cap ID 0x05)
+        if let Some(msi_offset) = self.find_capability_offset(0x05) {
+            return self.configure_standard_msi(msi_offset, vector, apic_id);
+        }
 
-        // Read Message Control Register (16-bit at offset + 2)
+        // 2. Try MSI-X (Cap ID 0x11)
+        if let Some(msix_offset) = self.find_capability_offset(0x11) {
+            return self.configure_msix(msix_offset, vector, apic_id);
+        }
+
+        false
+    }
+
+    fn configure_standard_msi(&self, msi_offset: u16, vector: u8, apic_id: u8) -> bool {
         let msg_ctrl = unsafe { self.config.read(self.addr, msi_offset + 2) } as u16;
-
-        // Message Address: 0xFEE00000 | (apic_id << 12)
         let msg_addr: u32 = 0xFEE0_0000 | ((apic_id as u32) << 12);
+
         unsafe {
             self.config.write(self.addr, msi_offset + 4, msg_addr);
         }
@@ -444,16 +538,48 @@ impl PciDevice {
             msi_offset + 8
         };
 
-        // Message Data: Vector number + Delivery Mode (000 = Fixed)
-        let msg_data: u32 = vector as u32;
         unsafe {
-            self.config.write(self.addr, data_offset, msg_data);
+            self.config.write(self.addr, data_offset, vector as u32);
+            self.config
+                .write(self.addr, msi_offset + 2, (msg_ctrl | 0x0001) as u32);
         }
 
-        // Enable MSI by setting bit 0 of Message Control Register
-        let updated_ctrl = (msg_ctrl | 0x0001) as u32;
+        true
+    }
+
+    fn configure_msix(&self, msix_offset: u16, vector: u8, apic_id: u8) -> bool {
+        let msg_ctrl = unsafe { self.config.read(self.addr, msix_offset + 2) } as u16;
+        let table_info = unsafe { self.config.read(self.addr, msix_offset + 4) };
+
+        let table_bar_idx = (table_info & 0x7) as usize;
+        let table_offset = (table_info & !0x7) as usize;
+
+        // Get BAR base address for MSI-X table
+        let bar_base = match self.bar(table_bar_idx) {
+            Some(Bar::Memory32 { address, .. }) => address as usize,
+            Some(Bar::Memory64 { address, .. }) => address as usize,
+            _ => return false,
+        };
+
+        // Map table entry in kernel space
+        let table_entry_addr = bar_base + table_offset;
+        let virt_addr = unsafe { crate::api::memory().map_to(table_entry_addr, true, false) };
+
+        let entry_ptr = virt_addr as *mut u32;
+
+        // Write Msg Addr, Msg Data, and Vector Control (0 = Unmasked)
+        let msg_addr: u32 = 0xFEE0_0000 | ((apic_id as u32) << 12);
         unsafe {
-            self.config.write(self.addr, msi_offset + 2, updated_ctrl);
+            core::ptr::write_volatile(entry_ptr.add(0), msg_addr); // Msg Addr Lower
+            core::ptr::write_volatile(entry_ptr.add(1), 0); // Msg Addr Upper
+            core::ptr::write_volatile(entry_ptr.add(2), vector as u32); // Msg Data
+            core::ptr::write_volatile(entry_ptr.add(3), 0); // Vector Control (Unmask)
+        }
+
+        // Enable MSI-X in Control Register (Bit 15 = Enable)
+        let updated_ctrl = (msg_ctrl | (1 << 15)) as u32;
+        unsafe {
+            self.config.write(self.addr, msix_offset + 2, updated_ctrl);
         }
 
         true
@@ -502,8 +628,16 @@ pub trait PciDriver: Send + Sync + 'static {
     /// This is where drivers should check device capabilities and other properties.
     fn should_bind(&self, device: &PciDevice) -> bool;
 
+    /// Determines if the device should be attached with an MSI interrupt.
+    ///
+    /// The returned value should be the local APIC ID.
+    fn should_attach_msi(&self, device: &PciDevice) -> Option<u8>;
+
     /// Initialize the device driver.
-    fn init(&self, device: &PciDevice);
+    ///
+    /// If [should_attach_msi] returns [Some],
+    /// the `msi_vector` parameter will contain the allocated vector for the device.
+    fn init(&self, device: &PciDevice, msi_vector: Option<u8>) -> Result<(), PciError>;
 
     /// Handle a device interrupt.
     fn handle_interrupt(&self, _: &PciDevice) -> InterruptStatus {
@@ -511,7 +645,7 @@ pub trait PciDriver: Send + Sync + 'static {
     }
 
     /// Destroys the device driver.
-    fn destroy(&self, device: &PciDevice);
+    fn destroy(&self, device: &PciDevice) -> Result<(), PciError>;
 }
 
 /// An interrupt status returned [PciDriver::handle_interrupt].

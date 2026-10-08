@@ -146,7 +146,8 @@ impl Control {
         const HELP_START: &str = "Control Help:\n\n\
             This is the control, the main interface to the kernel.\n\
             You can think of this as an overarching root shell.\n\
-            Use Arrow Up ↑ and Arrow Down ↓ to scroll through the terminal.\n\n\
+            Use ↑ and ↓ to scroll through the command history.\n\n\
+            Use Ctrl + ↑ and Ctrl + ↓ to scroll through the terminal.\n\n
             Available Commands:\n\n";
 
         let mut help = String::with_capacity(self.registry.len() * 32 + HELP_START.len());

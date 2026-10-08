@@ -11,10 +11,14 @@ pub enum PciError {
     DriverAlreadyRegistered,
     /// The driver is not registered.
     DriverNotFound,
+    /// The driver is not ready to be used.
+    DriverNotReady,
     /// The driver hub is full and no more devices may be registered.
     DriverHubFull,
     /// The target device does not support MSI.
     MsiUnsupported,
+    /// An untyped generic error occurred.
+    Generic(anyhow::Error),
 }
 
 impl Display for PciError {
@@ -24,8 +28,16 @@ impl Display for PciError {
             PciError::DeviceNotFound => write!(f, "Device not found"),
             PciError::DriverAlreadyRegistered => write!(f, "Driver already registered"),
             PciError::DriverNotFound => write!(f, "Driver not found"),
+            PciError::DriverNotReady => write!(f, "Driver not ready"),
             PciError::DriverHubFull => write!(f, "Driver hub is full"),
             PciError::MsiUnsupported => write!(f, "MSI is unsupported on this device"),
+            PciError::Generic(err) => write!(f, "Generic error: {}", err),
         }
+    }
+}
+
+impl From<anyhow::Error> for PciError {
+    fn from(err: anyhow::Error) -> Self {
+        PciError::Generic(err)
     }
 }

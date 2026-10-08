@@ -2,6 +2,7 @@ use kernel_core::requests;
 use kernel_core::sync::init::InitData;
 
 pub mod allocator;
+pub mod dma;
 pub mod frame_alloc;
 pub mod mapper;
 

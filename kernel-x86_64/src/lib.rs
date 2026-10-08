@@ -40,6 +40,7 @@ pub const KERNEL_API: KernelApi = KernelApi {
         end_of_interrupt: || unsafe {
             apic::end_of_interrupt();
         },
+        interrupt_ctrl_id: || apic::local_apic_id(),
     },
     port: PortApi {
         read_u8: port::read_u8,
@@ -69,6 +70,10 @@ pub const KERNEL_API: KernelApi = KernelApi {
         },
         translate,
         map_to,
+        dma_alloc: |size| unsafe { memory::dma::dma_alloc(size) },
+        dma_dealloc: |p_addr, _, pages| unsafe { memory::dma::dma_dealloc(p_addr, pages) },
+        dma_sync_device: |_, _, _| (),
+        dma_sync_cpu: |_, _, _| (),
     },
     time: TimeApi {
         read_local: time::read_local,

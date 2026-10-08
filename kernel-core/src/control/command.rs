@@ -85,8 +85,8 @@ pub mod builtin {
         #[cfg(feature = "pci")]
         Command {
             name: "pci",
-            description: "Prints information about the PCI devices to the control.",
-            usage: "pci <info>",
+            description: "Manage the PCI device hub.",
+            usage: "pci <driver-info|dev-info>",
             run: pci,
         },
         #[cfg(feature = "qemu-exit")]
@@ -317,7 +317,38 @@ pub mod builtin {
 
         if let Some(sub) = args.subcommand() {
             match sub.as_str() {
-                "info" => {
+                "driver-info" => {
+                    api::without_interrupts(|| {
+                        crate::device::pci::PCI_HUB.get().run(|hub| {
+                            use alloc::vec::Vec;
+
+                            let drivers = hub
+                                .get_drivers()
+                                .into_iter()
+                                .map(|driver| {
+                                    Ok((
+                                        driver,
+                                        hub.get_driver_devices(driver)
+                                            .ok_or("Driver device not found".to_string())?,
+                                    ))
+                                })
+                                .collect::<Result<Vec<(&str, &Vec<u32>)>, String>>()?;
+
+                            for (driver, devs) in drivers {
+                                let devices = devs
+                                    .iter()
+                                    .map(|dev| hub.get(*dev).unwrap().addr().to_string())
+                                    .collect::<Vec<_>>();
+
+                                log::info!("Driver: {driver} - Devices: {devices:?}");
+                            }
+
+                            Result::<(), String>::Ok(())
+                        })
+                    })?;
+                }
+
+                "dev-info" => {
                     api::without_interrupts(|| {
                         crate::device::pci::PCI_HUB.get().run(|hub| {
                             for (idx, dev) in hub.devices().iter().enumerate() {
@@ -348,10 +379,17 @@ pub mod builtin {
                         })
                     });
                 }
-                _ => return Err(format!("Invalid subcommand: {}. Usage: `pci <info>`.", sub)),
+                _ => {
+                    return Err(format!(
+                        "Invalid subcommand: {}. Usage: `pci <driver-info|dev-info>`.",
+                        sub
+                    ));
+                }
             }
         } else {
-            return Err("No subcommand specified. Usage: `pci <info>`.".to_string());
+            return Err(
+                "No subcommand specified. Usage: `pci <driver-info|dev-info>`.".to_string(),
+            );
         }
 
         Ok(())

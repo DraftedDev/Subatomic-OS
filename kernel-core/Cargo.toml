@@ -20,8 +20,10 @@ hashbrown = { version = "0.17.1", default-features = false, features = ["inline-
 rapidhash = { version = "4.5.1", default-features = false, features = ["nightly", "unsafe"] }
 time = { version = "0.3.55", default-features = false, features = ["alloc"] }
 no-pico-args = "0.5.1"
+anyhow = { version = "1.0.104", default-features = false }
 
 pci_types = { version = "0.10.1", optional = true }
+virtio-drivers = { version = "0.13.0", optional = true }
 object = { version = "0.40.0", default-features = false, features = ["read"] }
 pc-keyboard = { workspace = true }
 limine = { workspace = true }
@@ -30,7 +32,7 @@ log = { workspace = true }
 [features]
 default = []
 qemu-exit = []
-pci = ["pci_types"]
+pci = ["pci_types", "virtio-drivers"]
 
 [lib]
 name = "kernel_core"

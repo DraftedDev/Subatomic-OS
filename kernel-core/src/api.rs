@@ -111,6 +111,8 @@ pub struct InterruptsApi {
     pub enable_interrupts: fn(),
     /// Signals the end of the current interrupt.
     pub end_of_interrupt: unsafe fn(),
+    /// Get the ID of the current interrupt controller.
+    pub interrupt_ctrl_id: fn() -> u32,
 }
 
 impl InterruptsApi {
@@ -131,6 +133,11 @@ impl InterruptsApi {
     /// The caller must ensure, this function is called inside the correct interrupt context.
     pub unsafe fn end_of_interrupt(&self) {
         (self.enable_interrupts)()
+    }
+
+    /// Get the ID of the current interrupt controller.
+    pub fn interrupt_ctrl_id(&self) -> u32 {
+        (self.interrupt_ctrl_id)()
     }
 }
 
@@ -228,6 +235,14 @@ pub struct MemoryApi {
     pub translate: unsafe fn(addr: usize) -> usize,
     /// Maps the given physical address to a virtual address.
     pub map_to: unsafe fn(addr: usize, writable: bool, cache: bool) -> usize,
+    /// Allocates contiguous physical DMA memory.
+    pub dma_alloc: unsafe fn(pages: usize) -> Option<(usize, usize)>,
+    /// Deallocates contiguous physical DMA memory.
+    pub dma_dealloc: unsafe fn(phys_addr: usize, virt_addr: usize, pages: usize),
+    /// Prepares a buffer for DMA.
+    pub dma_sync_device: unsafe fn(addr: usize, size: usize, dir: DmaDirection),
+    /// Cleans up after DMA.
+    pub dma_sync_cpu: unsafe fn(addr: usize, size: usize, dir: DmaDirection),
 }
 
 impl MemoryApi {
@@ -291,6 +306,57 @@ impl MemoryApi {
     pub unsafe fn map_to(&self, addr: usize, writable: bool, cache: bool) -> usize {
         unsafe { (self.map_to)(addr, writable, cache) }
     }
+
+    /// Allocates contiguous physical DMA memory.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the requested number of pages is available
+    /// and that the returned addresses are used correctly.
+    pub unsafe fn dma_alloc(&self, pages: usize) -> Option<(usize, usize)> {
+        unsafe { (self.dma_alloc)(pages) }
+    }
+
+    /// Deallocates contiguous physical DMA memory.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the specified physical and virtual addresses are valid
+    /// and correspond to a previously allocated DMA region, and that the number of pages is correct.
+    pub unsafe fn dma_dealloc(&self, phys_addr: usize, virt_addr: usize, pages: usize) {
+        unsafe { (self.dma_dealloc)(phys_addr, virt_addr, pages) }
+    }
+
+    /// Prepares a buffer for DMA.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the specified address and size are valid
+    /// and correspond to a buffer that will be used for DMA, and that the direction is correct.
+    pub unsafe fn dma_sync_device(&self, addr: usize, size: usize, dir: DmaDirection) {
+        unsafe { (self.dma_sync_device)(addr, size, dir) }
+    }
+
+    /// Cleans up after DMA.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the specified address and size are valid
+    /// and correspond to a buffer that was used for DMA, and that the direction is correct.
+    pub unsafe fn dma_sync_cpu(&self, addr: usize, size: usize, dir: DmaDirection) {
+        unsafe { (self.dma_sync_cpu)(addr, size, dir) }
+    }
+}
+
+/// The direction of a DMA transfer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DmaDirection {
+    /// Transfer to device.
+    ToDevice,
+    /// Transfer from device.
+    FromDevice,
+    /// Transfer in both directions.
+    Bidirectional,
 }
 
 /// The time API for the kernel.

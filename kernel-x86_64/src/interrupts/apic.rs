@@ -20,6 +20,7 @@ static LOCAL_APIC: InitData<LocalApicWrapper> = InitData::uninit();
 /// Initialize the APIC.
 ///
 /// # Safety
+///
 /// Must only be called once before any APIC use.
 pub unsafe fn init() {
     // disable legacy PIC
@@ -151,11 +152,16 @@ unsafe fn calibrate_apic_timer(lapic: &mut LocalApic) {
 /// Signals the end of the current interrupt to the [LOCAL_APIC].
 ///
 /// # Safety
+///
 /// Must be called within an interrupt handler after the work is finished.
 pub unsafe fn end_of_interrupt() {
     unsafe {
         LOCAL_APIC.get_mut().0.end_of_interrupt();
     }
+}
+
+pub fn local_apic_id() -> u32 {
+    unsafe { LOCAL_APIC.get().0.id() }
 }
 
 pub struct LocalApicWrapper(pub LocalApic);
