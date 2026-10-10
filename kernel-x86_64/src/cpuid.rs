@@ -12,5 +12,5 @@ pub unsafe fn init() {
 }
 
 pub fn cpuid<'a>() -> &'a CpuId<CpuIdReaderNative> {
-    CPUID.get()
+    unsafe { CPUID.get_unsafe() }
 }

@@ -161,7 +161,7 @@ pub unsafe fn end_of_interrupt() {
 }
 
 pub fn local_apic_id() -> u32 {
-    unsafe { LOCAL_APIC.get().0.id() }
+    unsafe { LOCAL_APIC.get_unsafe().0.id() }
 }
 
 pub struct LocalApicWrapper(pub LocalApic);

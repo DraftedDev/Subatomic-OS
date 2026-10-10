@@ -70,9 +70,10 @@ pub unsafe fn init() {
 }
 
 pub fn read_hpet_counter() -> u64 {
-    let hpet_base =
-        unsafe { translate_phys_addr_unsafe(PhysAddr::new(HPET_INFO.get().base_address as u64)) }
-            .as_u64();
+    let hpet_base = unsafe {
+        translate_phys_addr_unsafe(PhysAddr::new(HPET_INFO.get_unsafe().base_address as u64))
+    }
+    .as_u64();
 
     unsafe { ((hpet_base + HPET_MAIN_COUNTER_OFFSET) as *const u64).read_volatile() }
 }

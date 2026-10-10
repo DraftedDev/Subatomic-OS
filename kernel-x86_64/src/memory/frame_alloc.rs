@@ -175,7 +175,7 @@ unsafe impl FrameAllocator<Size4KiB> for &AtomicFrameAllocator {
 impl FrameDeallocator<Size4KiB> for AtomicFrameAllocator {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
         unsafe {
-            self.deallocate_frame_internal(frame, *PHYS_MEM_OFFSET.get());
+            self.deallocate_frame_internal(frame, *PHYS_MEM_OFFSET.get_unsafe());
         }
     }
 }

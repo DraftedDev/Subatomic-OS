@@ -28,7 +28,7 @@ impl VirtioGpuDriver {
     ///
     /// Will panic if the driver is not registered and initialized yet.
     pub fn fetch<R>(f: impl FnOnce(&mut DriverState) -> R) -> R {
-        PCI_HUB.get().run(|hub| {
+        unsafe { PCI_HUB.get_unsafe() }.run(|hub| {
             let driver = unsafe { hub.get_driver_cast::<VirtioGpuDriver>(NAME) }
                 .expect("Driver not initialized");
 

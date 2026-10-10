@@ -15,7 +15,7 @@ pub static MODULES: InitData<Vec<KernelModule>> = InitData::uninit();
 ///
 /// This function must only be called once.
 pub unsafe fn init() {
-    if let Some(response) = requests::modules() {
+    let modules = if let Some(response) = requests::modules() {
         let limine_modules = response.modules();
         let mut modules = Vec::with_capacity(limine_modules.len());
 
@@ -25,10 +25,14 @@ pub unsafe fn init() {
             modules.push(module);
         }
 
-        MODULES.init(modules);
+        modules
     } else {
         log::info!("No limine modules found.");
-    }
+
+        Vec::new()
+    };
+
+    MODULES.init(modules);
 }
 
 pub fn run_init() {
@@ -38,7 +42,7 @@ pub fn run_init() {
 }
 
 pub fn run_update() {
-    for module in MODULES.get() {
+    for module in unsafe { MODULES.get_unsafe() } {
         module.update();
     }
 }

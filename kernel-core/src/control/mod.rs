@@ -243,7 +243,7 @@ impl InnerControl {
 
     /// Returns whether the control state is dirty.
     pub fn is_dirty(&self) -> bool {
-        self.dirty || !INPUT.get().is_empty() || self.app.is_some()
+        self.dirty || unsafe { !INPUT.get_unsafe().is_empty() } || self.app.is_some()
     }
 
     /// Sets the dirty state of the control.
@@ -281,7 +281,7 @@ impl InnerControl {
     }
 
     fn handle_input(&mut self, queue: &SegQueue<String>) {
-        let input = INPUT.get();
+        let input = unsafe { INPUT.get_unsafe() };
 
         let mods = input.modifiers();
 

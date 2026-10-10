@@ -36,7 +36,7 @@ pub unsafe fn init() {
 }
 
 pub fn translate_addr(addr: VirtAddr) -> Option<PhysAddr> {
-    MAPPER.get().run_irq(|table| table.translate_addr(addr))
+    unsafe { MAPPER.get_unsafe() }.run_irq(|table| table.translate_addr(addr))
 }
 
 pub fn translate_phys_addr(addr: PhysAddr) -> Option<VirtAddr> {
@@ -65,23 +65,21 @@ pub unsafe fn translate_phys_addr_unsafe(addr: PhysAddr) -> VirtAddr {
 ///
 /// The address must not be mapped already and must be valid.
 pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
-    MAPPER
-        .get()
-        .run_mut_irq(|mapper: &mut OffsetPageTable<'static>| unsafe {
-            let virt_addr = translate_phys_addr_unsafe(phys_addr);
+    unsafe { MAPPER.get_unsafe() }.run_mut_irq(|mapper: &mut OffsetPageTable<'static>| unsafe {
+        let virt_addr = translate_phys_addr_unsafe(phys_addr);
 
-            mapper
-                .map_to(
-                    Page::<PageSize>::containing_address(virt_addr),
-                    PhysFrame::containing_address(phys_addr),
-                    flags,
-                    frame_alloc::get(),
-                )
-                .expect("address mapping failed")
-                .flush();
+        mapper
+            .map_to(
+                Page::<PageSize>::containing_address(virt_addr),
+                PhysFrame::containing_address(phys_addr),
+                flags,
+                frame_alloc::get(),
+            )
+            .expect("address mapping failed")
+            .flush();
 
-            virt_addr
-        })
+        virt_addr
+    })
 }
 
 /// Maps the given address with the given page table flags if it is not already.
@@ -90,7 +88,7 @@ pub unsafe fn map_address(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAdd
 ///
 /// The address must be valid.
 pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFlags) -> VirtAddr {
-    MAPPER.get().run_mut_irq(|mapper| unsafe {
+    unsafe { MAPPER.get_unsafe() }.run_mut_irq(|mapper| unsafe {
         let virt_addr = translate_phys_addr_unsafe(phys_addr);
 
         if mapper.translate_addr(virt_addr).is_none() {
@@ -115,7 +113,7 @@ pub unsafe fn map_address_if_not_present(phys_addr: PhysAddr, flags: PageTableFl
 ///
 /// See [map_address].
 pub unsafe fn map_address_range(start: PhysAddr, size: usize, flags: PageTableFlags) -> VirtAddr {
-    MAPPER.get().run_mut_irq(|mapper| unsafe {
+    unsafe { MAPPER.get_unsafe() }.run_mut_irq(|mapper| unsafe {
         // Round start and end addresses to 4KiB pages
         let page_size = 4096;
         let start_addr = start.as_u64() & !(page_size as u64 - 1);

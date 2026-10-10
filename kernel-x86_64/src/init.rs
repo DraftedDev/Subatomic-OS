@@ -23,16 +23,16 @@ pub unsafe fn init() {
         log::info!("Initializing Interrupt Descriptor Table...");
         idt::init();
 
-        log::info!("Initializing physical memory offset...");
+        log::info!("Initializing Physical Memory Offset...");
         memory::init_phys_mem();
 
-        log::info!("Initializing page frame allocator...");
+        log::info!("Initializing Page Frame Allocator...");
         frame_alloc::get().init();
 
-        log::info!("Initializing page mapper...");
+        log::info!("Initializing Page Mapper...");
         mapper::init();
 
-        log::info!("Initializing heap allocator...");
+        log::info!("Initializing Heap Allocator...");
         allocator::init();
     }
 }
@@ -54,21 +54,21 @@ pub unsafe fn setup() {
             }
         }
 
-        kernel_core::control::CONTROL.get().update();
+        kernel_core::control::CONTROL.get_unsafe().update();
 
         log::info!("Initializing Advanced Configuration and Power Interface...");
         crate::acpi::init();
 
-        kernel_core::control::CONTROL.get().update();
+        kernel_core::control::CONTROL.get_unsafe().update();
 
         log::info!("Initializing Advanced Programmable Interrupt Controller...");
         apic::init();
 
-        kernel_core::control::CONTROL.get().update();
+        kernel_core::control::CONTROL.get_unsafe().update();
 
         log::info!("Initializing PCI Device Hub...");
         {
-            let mcfg = ACPI.get().mcfg.get();
+            let mcfg = ACPI.get_unsafe().mcfg.get();
             let mcfg = mcfg.entries().first().expect("Failed to get MCFG");
 
             let mapped = mapper::map_address_range(

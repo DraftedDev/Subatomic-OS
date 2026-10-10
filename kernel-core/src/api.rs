@@ -14,7 +14,7 @@ static API: InitData<KernelApi> = InitData::uninit();
 
 /// Get the global [KernelApi].
 pub const fn kernel() -> KernelApi {
-    *API.get()
+    unsafe { *API.get_unsafe() }
 }
 
 /// Sets the global [KernelApi].

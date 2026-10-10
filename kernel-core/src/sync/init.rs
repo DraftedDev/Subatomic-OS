@@ -40,14 +40,41 @@ impl<T> InitData<T> {
                 cell.assume_init_drop();
             }
 
+            self.init.replace(true);
             cell.write(data)
         }
     }
 
-    /// Get the inner data.
+    /// Get the inner data if it is already initialized.
+    pub const fn try_get(&self) -> Option<&T> {
+        let is_init = unsafe { *self.init.get() };
+
+        if is_init {
+            Some(unsafe { self.get_unsafe() })
+        } else {
+            None
+        }
+    }
+
+    /// Get the inner data or panic if it's not initialized.
     ///
-    ///
+    /// For a zero-overhead unsafe version, see [InitData::get_unsafe].
     pub const fn get(&self) -> &T {
+        if unsafe { !*self.init.get() } {
+            panic!("Tried to get uninitialized InitData")
+        }
+
+        unsafe { self.get_unsafe() }
+    }
+
+    /// Get the inner data without any safety checks.
+    ///
+    /// Faster but unsafe version of [InitData::get].
+    ///
+    /// # Safety
+    ///
+    /// The caller must guarantee that the inner data is actually initialized.
+    pub const unsafe fn get_unsafe(&self) -> &T {
         unsafe { (&*self.data.get()).assume_init_ref() }
     }
 

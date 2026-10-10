@@ -22,11 +22,11 @@ pub struct GlobalDescriptor {
 }
 
 pub fn get_gdt<'a>() -> &'a GlobalDescriptor {
-    GLOBAL_DESCRIPTOR.get()
+    unsafe { GLOBAL_DESCRIPTOR.get_unsafe() }
 }
 
 pub fn get_tss<'a>() -> &'a TaskStateSegment {
-    TSS.get()
+    unsafe { TSS.get_unsafe() }
 }
 
 /// Initialize the global descriptor table and task state segment.

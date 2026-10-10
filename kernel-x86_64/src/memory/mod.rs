@@ -18,6 +18,7 @@ pub unsafe fn init_phys_mem() {
     PHYS_MEM_OFFSET.init(hhdm.offset);
 }
 
+/// Get the physical memory offset.
 pub const fn phys_mem_offset() -> u64 {
-    *PHYS_MEM_OFFSET.get()
+    unsafe { *PHYS_MEM_OFFSET.get_unsafe() }
 }

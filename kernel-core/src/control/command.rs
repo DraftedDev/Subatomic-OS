@@ -99,7 +99,7 @@ pub mod builtin {
     ];
 
     fn clear(_: String) -> Result<(), String> {
-        CONTROL.get().run(|ctrl| {
+        unsafe { CONTROL.get_unsafe() }.run(|ctrl| {
             ctrl.lines.clear();
             ctrl.string_buf.clear();
             ctrl.set_dirty(true);
@@ -208,8 +208,7 @@ pub mod builtin {
     }
 
     fn print(sub: String) -> Result<(), String> {
-        CONTROL
-            .get()
+        unsafe { CONTROL.get_unsafe() }
             .run(|ctrl| writeln!(ctrl, "{}", sub))
             .map_err(|err| err.to_string())?;
 
@@ -306,7 +305,7 @@ pub mod builtin {
             _ => Err("Game not found. Available: 'breakout'.".to_string()),
         }?;
 
-        CONTROL.get().run(|ctrl| ctrl.set_app(app));
+        unsafe { CONTROL.get_unsafe() }.run(|ctrl| ctrl.set_app(app));
 
         Ok(())
     }
@@ -319,7 +318,7 @@ pub mod builtin {
             match sub.as_str() {
                 "driver-info" => {
                     api::without_interrupts(|| {
-                        crate::device::pci::PCI_HUB.get().run(|hub| {
+                        unsafe { crate::device::pci::PCI_HUB.get_unsafe() }.run(|hub| {
                             use alloc::vec::Vec;
 
                             let drivers = hub
@@ -350,7 +349,7 @@ pub mod builtin {
 
                 "dev-info" => {
                     api::without_interrupts(|| {
-                        crate::device::pci::PCI_HUB.get().run(|hub| {
+                        unsafe { crate::device::pci::PCI_HUB.get_unsafe() }.run(|hub| {
                             for (idx, dev) in hub.devices().iter().enumerate() {
                                 let dev = hub.get(*dev).expect("Failed to get device");
                                 let class = dev.class();

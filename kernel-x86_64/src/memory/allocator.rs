@@ -219,7 +219,7 @@ impl LocklessPageAllocator {
     }
 
     fn ensure_pages_mapped(&self, start_page: usize, count: usize) {
-        MAPPER.get().run_mut_irq(|mapper| {
+        unsafe { MAPPER.get_unsafe() }.run_mut_irq(|mapper| {
             for i in 0..count {
                 let idx = start_page + i;
                 let chunk_idx = idx / 64;

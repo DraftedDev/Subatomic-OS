@@ -97,7 +97,7 @@ impl Log for Logger {
             .expect("Failed to write log to serial");
 
         if control::is_init() {
-            CONTROL.get().run(|ctrl| {
+            unsafe { CONTROL.get_unsafe() }.run(|ctrl| {
                 self.write(
                     level,
                     args,

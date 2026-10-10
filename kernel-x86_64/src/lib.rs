@@ -52,20 +52,20 @@ pub const KERNEL_API: KernelApi = KernelApi {
     },
     memory: MemoryApi {
         is_init: || memory::allocator::is_init(),
-        alloc: |layout| unsafe { memory::allocator::GLOBAL_ALLOCATOR.get().alloc(layout) },
+        alloc: |layout| unsafe { memory::allocator::GLOBAL_ALLOCATOR.get_unsafe().alloc(layout) },
         alloc_zeroed: |layout| unsafe {
             memory::allocator::GLOBAL_ALLOCATOR
-                .get()
+                .get_unsafe()
                 .alloc_zeroed(layout)
         },
         dealloc: |ptr, layout| unsafe {
             memory::allocator::GLOBAL_ALLOCATOR
-                .get()
+                .get_unsafe()
                 .dealloc(ptr, layout)
         },
         realloc: |ptr, layout, new_size| unsafe {
             memory::allocator::GLOBAL_ALLOCATOR
-                .get()
+                .get_unsafe()
                 .realloc(ptr, layout, new_size)
         },
         translate,
