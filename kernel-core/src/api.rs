@@ -22,8 +22,8 @@ pub const fn kernel() -> KernelApi {
 /// # Safety
 ///
 /// This must only be called exactly once before any API usage.
-pub const unsafe fn set(kernel: KernelApi) -> KernelApi {
-    unsafe { *API.init(kernel) }
+pub unsafe fn set(kernel: KernelApi) -> KernelApi {
+    *API.init(kernel)
 }
 
 /// Get the global [KernelApiInfo].
@@ -234,7 +234,7 @@ pub struct MemoryApi {
     /// Translates a physical address to a virtual address.
     pub translate: unsafe fn(addr: usize) -> usize,
     /// Maps the given physical address to a virtual address.
-    pub map_to: unsafe fn(addr: usize, writable: bool, cache: bool) -> usize,
+    pub map_to: unsafe fn(addr: usize, writable: bool, cache: bool, ignore_present: bool) -> usize,
     /// Allocates contiguous physical DMA memory.
     pub dma_alloc: unsafe fn(pages: usize) -> Option<(usize, usize)>,
     /// Deallocates contiguous physical DMA memory.
@@ -300,11 +300,20 @@ impl MemoryApi {
 
     /// Maps the given physical address to a virtual address.
     ///
+    /// If `ignore_present` is [true], the mapper will not throw a
+    /// page-already-mapped error if the address is already mapped.
+    ///
     /// # Safety
     ///
     /// The specified address must be valid.
-    pub unsafe fn map_to(&self, addr: usize, writable: bool, cache: bool) -> usize {
-        unsafe { (self.map_to)(addr, writable, cache) }
+    pub unsafe fn map_to(
+        &self,
+        addr: usize,
+        writable: bool,
+        cache: bool,
+        ignore_present: bool,
+    ) -> usize {
+        unsafe { (self.map_to)(addr, writable, cache, ignore_present) }
     }
 
     /// Allocates contiguous physical DMA memory.

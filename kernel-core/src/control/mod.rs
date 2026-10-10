@@ -172,7 +172,7 @@ impl Control {
 /// This provides functionality that requires mutability,
 /// therefore it's locked behind [Control::run].
 pub struct InnerControl {
-    terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Display, Rgb888>>>,
+    terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Box<dyn Display>, Rgb888>>>,
     lines: Vec<Vec<(char, Style)>>,
     string_buf: String,
     command: String,

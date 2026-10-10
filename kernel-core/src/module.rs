@@ -25,7 +25,7 @@ pub unsafe fn init() {
             modules.push(module);
         }
 
-        unsafe { MODULES.init(modules) };
+        MODULES.init(modules);
     } else {
         log::info!("No limine modules found.");
     }

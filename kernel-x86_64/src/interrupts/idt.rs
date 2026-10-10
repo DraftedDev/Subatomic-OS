@@ -322,5 +322,5 @@ pub unsafe fn init() {
         255 => pci_interrupt_255_handler,
     );
 
-    unsafe { IDT.init(idt).load() }
+    IDT.init(idt).load();
 }

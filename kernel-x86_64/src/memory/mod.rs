@@ -15,9 +15,7 @@ static PHYS_MEM_OFFSET: InitData<u64> = InitData::uninit();
 pub unsafe fn init_phys_mem() {
     let hhdm = requests::higher_half_dm();
 
-    unsafe {
-        PHYS_MEM_OFFSET.init(hhdm.offset);
-    }
+    PHYS_MEM_OFFSET.init(hhdm.offset);
 }
 
 pub const fn phys_mem_offset() -> u64 {

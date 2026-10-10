@@ -1,5 +1,6 @@
 use crate::requests;
 use crate::sync::init::InitData;
+use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::Pixel;
@@ -9,20 +10,46 @@ use embedded_graphics::prelude::{DrawTarget, Point, Size};
 use embedded_graphics::primitives::Rectangle;
 
 /// Global display instance for writing graphics data to the framebuffer.
-pub static DISPLAY: InitData<Display> = InitData::uninit();
+pub static DISPLAY: InitData<Box<dyn Display>> = InitData::uninit();
+
+/// A general display abstraction.
+pub trait Display: Send + Sync + 'static {
+    /// Get the width of the display.
+    fn width(&self) -> u32;
+    /// Get the height of the display.
+    fn height(&self) -> u32;
+    /// Get the stride/pitch of the display.
+    fn stride(&self) -> u32;
+    /// Get display pixel format.
+    fn format(&self) -> PixelFormat;
+    /// Get the display framebuffer.
+    fn buffer(&mut self) -> &mut [u8];
+    /// Flush the framebuffer to the actual display.
+    fn flush(&mut self);
+}
+
+/// The display pixel format.
+pub enum PixelFormat {
+    /// 8x4 blue-green-red-alpha format.
+    Bgra8888,
+    /// 8x4 red-green-blue-alpha format.
+    Rgba8888,
+    /// 5-6-5 red-blue-green format.
+    Rgb565,
+}
 
 /// The display to draw on.
 ///
 /// Directly connected to the framebuffer provided by limine.
-pub struct Display {
-    width: usize,
-    height: usize,
-    pitch: usize,
+pub struct BootDisplay {
+    width: u32,
+    height: u32,
+    pitch: u32,
     fb: &'static mut [u8],
     backbuffer: Vec<u8>,
 }
 
-impl Display {
+impl BootDisplay {
     /// Create a new display instance.
     pub fn new() -> Self {
         // TODO: config without display?
@@ -32,10 +59,10 @@ impl Display {
             .next()
             .expect("No display found.");
 
-        let pitch = fb.pitch as usize;
-        let height = fb.height as usize;
-        let width = fb.width as usize;
-        let fb_size = pitch * height;
+        let pitch = fb.pitch as u32;
+        let height = fb.height as u32;
+        let width = fb.width as u32;
+        let fb_size = (pitch * height) as usize;
 
         let slice = unsafe { core::slice::from_raw_parts_mut(fb.address() as *mut u8, fb_size) };
 
@@ -47,46 +74,41 @@ impl Display {
             backbuffer: vec![0; fb_size],
         }
     }
+}
 
-    /// Get the framebuffer width.
-    pub fn width(&self) -> usize {
+impl Display for BootDisplay {
+    fn width(&self) -> u32 {
         self.width
     }
 
-    /// Get the framebuffer height.
-    pub fn height(&self) -> usize {
+    fn height(&self) -> u32 {
         self.height
     }
 
-    /// Set the pixel at `x` and `y` to the given color.
-    pub fn set_pixel(&mut self, x: usize, y: usize, color: Rgb888) {
-        if x >= self.width || y >= self.height {
-            return;
-        }
-
-        let offset = y * self.pitch + x * 4;
-        self.backbuffer[offset] = color.b();
-        self.backbuffer[offset + 1] = color.g();
-        self.backbuffer[offset + 2] = color.r();
-        self.backbuffer[offset + 3] = 0;
+    fn stride(&self) -> u32 {
+        self.pitch
     }
 
-    /// Flushes the RAM backbuffer to VRAM in a single memory block copy.
-    pub fn flush(&mut self) {
+    fn format(&self) -> PixelFormat {
+        PixelFormat::Rgba8888
+    }
+
+    fn buffer(&mut self) -> &mut [u8] {
+        self.backbuffer.as_mut()
+    }
+
+    fn flush(&mut self) {
         self.fb.copy_from_slice(&self.backbuffer);
     }
 }
 
-impl Dimensions for Display {
+impl Dimensions for Box<dyn Display> {
     fn bounding_box(&self) -> Rectangle {
-        Rectangle::new(
-            Point::zero(),
-            Size::new(self.width as u32, self.height as u32),
-        )
+        Rectangle::new(Point::zero(), Size::new(self.width(), self.height()))
     }
 }
 
-impl DrawTarget for Display {
+impl DrawTarget for Box<dyn Display> {
     type Color = Rgb888;
     type Error = core::convert::Infallible;
 
@@ -94,29 +116,18 @@ impl DrawTarget for Display {
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        for pixel in pixels {
-            self.set_pixel(pixel.0.x as usize, pixel.0.y as usize, pixel.1);
-        }
-        Ok(())
-    }
+        let stride = self.stride() as usize;
+        let w = self.width();
+        let h = self.height();
+        let buf = self.buffer();
 
-    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        let intersection = area.intersection(&self.bounding_box());
-        if intersection.is_zero_sized() {
-            return Ok(());
-        }
-
-        let pixel_bytes = [color.b(), color.g(), color.r(), 0];
-        let x_start = intersection.top_left.x as usize;
-        let y_start = intersection.top_left.y as usize;
-        let width = intersection.size.width as usize;
-        let height = intersection.size.height as usize;
-
-        for y in y_start..(y_start + height) {
-            let row_offset = y * self.pitch + x_start * 4;
-            for x in 0..width {
-                let offset = row_offset + x * 4;
-                self.backbuffer[offset..offset + 4].copy_from_slice(&pixel_bytes);
+        for Pixel(Point { x, y }, color) in pixels {
+            if x >= 0 && x < w as i32 && y >= 0 && y < h as i32 {
+                let idx = (y as usize * stride) + (x as usize * 4);
+                buf[idx] = color.b();
+                buf[idx + 1] = color.g();
+                buf[idx + 2] = color.r();
+                buf[idx + 3] = 0xFF;
             }
         }
 

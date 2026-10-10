@@ -1,43 +1,52 @@
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 
-/// A zero-overhead wrapper around a type that should only be initialized once.
+use crate::SYSTEM_INIT;
+
+/// A container for any data prepared during system initialization.
 ///
-/// This is a high-performance version of [spin::Once].
+/// The inner value can safely be mutated, but only before system initialization.
 ///
-/// Should only be used for global one-time-init data.
-pub struct InitData<T, M = ()> {
+/// See [SYSTEM_INIT] for more.
+pub struct InitData<T> {
     data: UnsafeCell<MaybeUninit<T>>,
-    _phantom: core::marker::PhantomData<M>,
+    init: UnsafeCell<bool>,
 }
 
-impl<T, M> InitData<T, M> {
-    /// Create a new uninitialized [InitData].
+impl<T> InitData<T> {
+    /// Create a new uninitialized [InitData] instance.
     pub const fn uninit() -> Self {
         Self {
             data: UnsafeCell::new(MaybeUninit::uninit()),
-            _phantom: core::marker::PhantomData,
+            init: UnsafeCell::new(false),
         }
     }
 
-    /// Initialize the data.
+    /// Initialize the [InitData].
     ///
-    /// # Safety
-    /// The caller must ensure that this is called before any access via [InitData::get].
-    /// Should be called inside kernel setup functions.
+    /// If the data is already set, it will simply be dropped and replaced.
+    ///
+    /// Will panic if [SYSTEM_INIT] is [true].
     #[allow(clippy::mut_from_ref)]
-    pub const unsafe fn init(&self, data: T) -> &mut T {
+    pub fn init(&self, data: T) -> &mut T {
+        if unsafe { SYSTEM_INIT } {
+            panic!("Tried to mutate InitData after initialization!");
+        }
+
         unsafe {
-            let inner = &mut *self.data.get();
-            inner.write(data)
+            let cell = &mut *self.data.get();
+
+            if *self.init.get() {
+                cell.assume_init_drop();
+            }
+
+            cell.write(data)
         }
     }
 
     /// Get the inner data.
     ///
-    /// # Safety
     ///
-    /// This is only safe, because callers of [InitData::init] face additional responsibilities.
     pub const fn get(&self) -> &T {
         unsafe { (&*self.data.get()).assume_init_ref() }
     }
@@ -46,29 +55,13 @@ impl<T, M> InitData<T, M> {
     ///
     /// # Safety
     ///
-    /// This is highly unsafe and should only be used in edge-cases.
+    /// This is highly unsafe and should definitely not be used, like at all.
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut(&self) -> &mut T {
         unsafe { (&mut *self.data.get()).assume_init_mut() }
     }
 }
 
-unsafe impl<T: Sync> Sync for InitData<T, ()> {}
+unsafe impl<T: Sync> Sync for InitData<T> {}
 
-unsafe impl<T: Send> Send for InitData<T, ()> {}
-
-/// Makes the [InitData] `Send`-safe.
-pub struct SendMarker;
-
-unsafe impl<T> Send for InitData<T, SendMarker> {}
-
-/// Makes the [InitData] `Sync`-safe.
-pub struct SyncMarker;
-
-unsafe impl<T> Sync for InitData<T, SyncMarker> {}
-
-/// Makes the [InitData] `Send`-safe and `Sync`-safe.
-pub struct SendSyncMarker;
-
-unsafe impl<T> Send for InitData<T, SendSyncMarker> {}
-unsafe impl<T> Sync for InitData<T, SendSyncMarker> {}
+unsafe impl<T: Send> Send for InitData<T> {}

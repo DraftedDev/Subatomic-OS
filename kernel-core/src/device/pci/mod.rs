@@ -42,8 +42,8 @@ pub static PCI_HUB: InitData<RwLock<PciDeviceHub>> = InitData::uninit();
 ///
 /// This function is unsafe, because the caller must guarantee
 /// that this is called before any [PciDeviceHub] operations and only once.
-pub unsafe fn init<'a>(ecam_base: usize) -> &'a RwLock<PciDeviceHub> {
-    unsafe { PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base))) }
+pub unsafe fn init<'a>(ecam_base: usize) -> &'a mut RwLock<PciDeviceHub> {
+    PCI_HUB.init(RwLock::new(PciDeviceHub::new(ecam_base)))
 }
 
 /// Add built-in drivers to the global [PCI_HUB].
@@ -86,6 +86,21 @@ impl PciDeviceHub {
     /// Get all registered driver names.
     pub fn get_drivers(&self) -> Vec<&'static str> {
         self.drivers.keys().copied().collect()
+    }
+
+    /// Get a driver and cast it to a type.
+    ///
+    /// # Safety
+    ///
+    /// For performance reasons, this directly casts the type unsafely,
+    /// so the caller needs to ensure the specified type is correct.
+    pub unsafe fn get_driver_cast<D: PciDriver>(&self, name: &'static str) -> Option<&D> {
+        let boxed = self.get_driver(name).ok()?;
+        let trait_ref: &dyn PciDriver = &**boxed;
+
+        let raw_ptr = trait_ref as *const dyn PciDriver as *const D;
+
+        Some(unsafe { &*raw_ptr })
     }
 
     /// Get all devices that the given driver operate on.
@@ -563,7 +578,8 @@ impl PciDevice {
 
         // Map table entry in kernel space
         let table_entry_addr = bar_base + table_offset;
-        let virt_addr = unsafe { crate::api::memory().map_to(table_entry_addr, true, false) };
+        let virt_addr =
+            unsafe { crate::api::memory().map_to(table_entry_addr, true, false, false) };
 
         let entry_ptr = virt_addr as *mut u32;
 

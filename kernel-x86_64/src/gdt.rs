@@ -38,7 +38,7 @@ pub unsafe fn init() {
         TSS.init(build_tss());
     }
 
-    let gdt = unsafe {
+    let gdt = {
         let mut table = GlobalDescriptorTable::new();
 
         let tss = table.append(Descriptor::tss_segment(get_tss()));

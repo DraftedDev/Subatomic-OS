@@ -8,9 +8,7 @@ static CPUID: InitData<CpuId<CpuIdReaderNative>> = InitData::uninit();
 /// # Safety
 /// This must only be called once before any [CPUID] usage.
 pub unsafe fn init() {
-    unsafe {
-        CPUID.init(CpuId::new());
-    }
+    CPUID.init(CpuId::new());
 }
 
 pub fn cpuid<'a>() -> &'a CpuId<CpuIdReaderNative> {

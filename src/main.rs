@@ -5,7 +5,8 @@
 
 extern crate alloc;
 
-use kernel_core::control::display::{DISPLAY, Display};
+use alloc::boxed::Box;
+use kernel_core::control::display::{BootDisplay, DISPLAY};
 use kernel_core::info::KernelInfo;
 use kernel_core::requests::BASE_REVISION;
 use kernel_core::{api, control, logger, module, scheduler};
@@ -80,9 +81,7 @@ unsafe fn init(filter: LevelFilter) {
     }
 
     log::info!("Initializing Display...");
-    unsafe {
-        DISPLAY.init(Display::new());
-    }
+    DISPLAY.init(Box::new(BootDisplay::new()));
 
     log::info!("Initializing Control...");
     unsafe {
@@ -96,6 +95,10 @@ unsafe fn init(filter: LevelFilter) {
 
     log::info!("Initializing kernel modules...");
     module::run_init();
+
+    unsafe {
+        kernel_core::SYSTEM_INIT = true;
+    }
 
     api::interrupts().enable_interrupts();
 }

@@ -57,6 +57,7 @@ qemu: get-ovmf build-iso
         -serial stdio \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
         -device virtio-gpu-pci \
+        -vga virtio \
         -display sdl,gl=on \
         -machine q35 \
         {{ qemu_flags }} || [ $? -eq 33 ]

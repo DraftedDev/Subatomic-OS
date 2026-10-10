@@ -109,7 +109,7 @@ unsafe fn translate(addr: usize) -> usize {
         .as_u64() as usize
 }
 
-unsafe fn map_to(addr: usize, writable: bool, cache: bool) -> usize {
+unsafe fn map_to(addr: usize, writable: bool, cache: bool, ignore_present: bool) -> usize {
     let mut flags = PageTableFlags::PRESENT;
 
     if writable {
@@ -120,5 +120,12 @@ unsafe fn map_to(addr: usize, writable: bool, cache: bool) -> usize {
         flags.insert(PageTableFlags::NO_CACHE);
     }
 
-    unsafe { memory::mapper::map_address(PhysAddr::new(addr as u64), flags) }.as_u64() as usize
+    if ignore_present {
+        unsafe {
+            memory::mapper::map_address_if_not_present(PhysAddr::new(addr as u64), flags).as_u64()
+                as usize
+        }
+    } else {
+        unsafe { memory::mapper::map_address(PhysAddr::new(addr as u64), flags) }.as_u64() as usize
+    }
 }

@@ -58,3 +58,12 @@ pub mod module;
 
 /// Contains scheduling logic.
 pub mod scheduler;
+
+/// A global variable representing the system initialization status.
+///
+/// During system initialization, code is guaranteed to run sequentially
+/// and therefore will never mutate data at the same time.
+///
+/// When this variable is [true] however, this safety is not guaranteed anymore
+/// and any shared mutations must be synchronized (using locks or atomics).
+pub static mut SYSTEM_INIT: bool = false;

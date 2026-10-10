@@ -35,7 +35,7 @@ unsafe impl Hal for KernelHal {
     }
 
     unsafe fn mmio_phys_to_virt(p_addr: PhysAddr, _size: usize) -> NonNull<u8> {
-        let v_addr = unsafe { api::memory().map_to(p_addr as usize, true, false) };
+        let v_addr = unsafe { api::memory().map_to(p_addr as usize, true, false, true) };
         NonNull::new(v_addr as *mut u8).expect("HAL: Null MMIO pointer")
     }
 
