@@ -36,6 +36,11 @@ impl<T, SEND, SYNC> UnsafeWrapper<T, SEND, SYNC> {
             _data: core::marker::PhantomData,
         }
     }
+
+    /// Get the inner value.
+    pub fn inner(&self) -> &T {
+        &self.inner
+    }
 }
 
 impl<T, SEND, SYNC> Deref for UnsafeWrapper<T, SEND, SYNC> {

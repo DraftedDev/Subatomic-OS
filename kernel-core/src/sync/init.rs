@@ -36,7 +36,7 @@ impl<T> InitData<T> {
         unsafe {
             let cell = &mut *self.data.get();
 
-            if *self.init.get() {
+            if self.is_init() {
                 cell.assume_init_drop();
             }
 
@@ -47,7 +47,7 @@ impl<T> InitData<T> {
 
     /// Get the inner data if it is already initialized.
     pub const fn try_get(&self) -> Option<&T> {
-        let is_init = unsafe { *self.init.get() };
+        let is_init = self.is_init();
 
         if is_init {
             Some(unsafe { self.get_unsafe() })
@@ -60,7 +60,7 @@ impl<T> InitData<T> {
     ///
     /// For a zero-overhead unsafe version, see [InitData::get_unsafe].
     pub const fn get(&self) -> &T {
-        if unsafe { !*self.init.get() } {
+        if !self.is_init() {
             panic!("Tried to get uninitialized InitData")
         }
 
@@ -86,6 +86,11 @@ impl<T> InitData<T> {
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut(&self) -> &mut T {
         unsafe { (&mut *self.data.get()).assume_init_mut() }
+    }
+
+    /// Return if the inner data is already initialized.
+    pub const fn is_init(&self) -> bool {
+        unsafe { *self.init.get() }
     }
 }
 

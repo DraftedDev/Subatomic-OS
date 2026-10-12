@@ -2,6 +2,7 @@ use core::panic::{Location, PanicInfo, PanicMessage};
 use kernel_core::collections::{StackString, stack_format};
 use kernel_core::{api, serial_println};
 
+// TODO: Custom panic-allocator
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     let location = info.location().unwrap();
@@ -11,7 +12,6 @@ fn panic(info: &PanicInfo) -> ! {
 
     log::error!("Encountered kernel panic!");
 
-    // TODO: handle this stack overflow
     let message: StackString<512> = stack_format!(
         "Kernel Panic at {}:{}:{}",
         location.file(),
@@ -36,11 +36,9 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-// TODO: investigate into log::error not working somehow
 fn serial_panic(msg: &PanicMessage, location: &Location) {
     serial_println!("Encountered kernel panic!");
 
-    // TODO: handle this stack overflow
     let message: StackString<512> = stack_format!(
         "Kernel Panic at {}:{}:{}",
         location.file(),

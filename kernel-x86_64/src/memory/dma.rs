@@ -1,8 +1,11 @@
-use crate::memory::{frame_alloc, phys_mem_offset};
-use x86_64::PhysAddr;
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB};
+use crate::memory::{self, frame_alloc, mapper};
+use x86_64::structures::paging::{
+    FrameAllocator, FrameDeallocator, Page, PageTableFlags, Size4KiB,
+};
+use x86_64::structures::paging::{Mapper, PhysFrame};
+use x86_64::{PhysAddr, VirtAddr};
 
-/// Allocates a DMA page.
+/// Allocates a DMA page or contiguous block of pages and maps them into the page table.
 ///
 /// # Safety
 ///
@@ -13,25 +16,49 @@ pub unsafe fn dma_alloc(pages: usize) -> Option<(usize, usize)> {
         return None;
     }
 
-    let offset = phys_mem_offset();
+    let alloc = frame_alloc::get();
+    let size = pages * 4096;
+    let offset = memory::phys_mem_offset();
 
-    if pages == 1 {
-        let frame = frame_alloc::get().allocate_frame()?;
-        let p_addr = frame.start_address().as_u64() as usize;
-        let v_addr = p_addr + offset as usize;
+    let first_frame = if pages == 1 {
+        alloc.allocate_frame()?
+    } else {
+        alloc.allocate_contiguous(pages)?
+    };
 
-        // Zero out allocated memory
-        unsafe {
-            core::ptr::write_bytes(v_addr as *mut u8, 0, 4096);
+    let p_start = first_frame.start_address();
+    let p_usize = p_start.as_u64() as usize;
+    let v_usize = p_usize + offset as usize;
+
+    let flags = PageTableFlags::PRESENT
+        | PageTableFlags::WRITABLE
+        | PageTableFlags::NO_CACHE
+        | PageTableFlags::GLOBAL;
+
+    mapper::MAPPER.get().run_mut(|m| {
+        for i in 0..pages {
+            let p_addr = p_start.as_u64() + (i as u64 * 4096);
+            let v_addr = v_usize as u64 + (i as u64 * 4096);
+
+            let frame = PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(p_addr));
+            let page = Page::<Size4KiB>::containing_address(VirtAddr::new(v_addr));
+
+            if let Ok(mapping) = unsafe { m.map_to(page, frame, flags, alloc) } {
+                mapping.flush();
+            } else if let Ok(mapping) = unsafe { m.update_flags(page, flags) } {
+                mapping.flush();
+            }
         }
+    });
 
-        return Some((p_addr, v_addr));
+    unsafe {
+        core::ptr::write_bytes(v_usize as *mut u8, 0, size);
     }
 
-    allocate_contiguous_dma(pages, offset)
+    Some((p_usize, v_usize))
 }
 
-/// Deallocates a DMA page.
+/// Deallocates a DMA page range.
 ///
 /// # Safety
 ///
@@ -39,55 +66,24 @@ pub unsafe fn dma_alloc(pages: usize) -> Option<(usize, usize)> {
 /// and number of pages are valid and correspond to previously allocated DMA memory.
 pub unsafe fn dma_dealloc(p_addr: usize, pages: usize) {
     let alloc = frame_alloc::get();
+    let offset = crate::memory::phys_mem_offset();
 
-    for i in 0..pages {
-        let frame_p_addr = PhysAddr::new((p_addr + i * 4096) as u64);
-        let frame = PhysFrame::<Size4KiB>::containing_address(frame_p_addr);
+    mapper::MAPPER.get().run_mut(|mapper| {
+        for i in 0..pages {
+            let frame_p_addr = PhysAddr::new((p_addr + i * 4096) as u64);
+            let frame =
+                x86_64::structures::paging::PhysFrame::<Size4KiB>::containing_address(frame_p_addr);
+            let page = x86_64::structures::paging::Page::<Size4KiB>::containing_address(
+                x86_64::VirtAddr::new(p_addr as u64 + offset + (i * 4096) as u64),
+            );
 
-        unsafe {
-            alloc.deallocate_frame(frame);
-        }
-    }
-}
-
-fn allocate_contiguous_dma(pages: usize, offset: u64) -> Option<(usize, usize)> {
-    let alloc = frame_alloc::get();
-    let mut frames = alloc::vec::Vec::with_capacity(pages);
-
-    for _ in 0..pages {
-        if let Some(frame) = alloc.allocate_frame() {
-            frames.push(frame);
-        } else {
-            // Out of memory: rollback
-            for f in frames {
-                unsafe { alloc.deallocate_frame(f) };
+            if let Ok((_frame, flush)) = mapper.unmap(page) {
+                flush.flush();
             }
-            return None;
-        }
-    }
 
-    // Check physical contiguity
-    let mut contiguous = true;
-    for i in 0..pages - 1 {
-        if frames[i + 1].start_address().as_u64() != frames[i].start_address().as_u64() + 4096 {
-            contiguous = false;
-            break;
+            unsafe {
+                alloc.deallocate_frame(frame);
+            }
         }
-    }
-
-    if contiguous {
-        let p_addr = frames[0].start_address().as_u64() as usize;
-        let v_addr = p_addr + offset as usize;
-        unsafe {
-            core::ptr::write_bytes(v_addr as *mut u8, 0, pages * 4096);
-        }
-        Some((p_addr, v_addr))
-    } else {
-        // Deallocate non-contiguous frames and return error
-        for f in frames {
-            unsafe { alloc.deallocate_frame(f) };
-        }
-
-        None
-    }
+    });
 }

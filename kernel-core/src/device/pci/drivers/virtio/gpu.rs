@@ -6,6 +6,7 @@ use crate::{
         error::PciError, hal::KernelHal,
     },
     sync::mutex::Mutex,
+    wrapper::SendSyncWrapper,
 };
 use alloc::boxed::Box;
 use virtio_drivers::{
@@ -84,25 +85,37 @@ impl PciDriver for VirtioGpuDriver {
 
         let mut gpu = VirtIOGpu::new(transport).map_err(anyhow::Error::from)?;
 
-        let res = gpu.resolution().map_err(anyhow::Error::from)?;
-        let framebuffer = gpu.setup_framebuffer().map_err(anyhow::Error::from)?;
-
-        let framebuffer = unsafe {
-            let ptr = framebuffer.as_ptr() as *mut u8;
-            let len = framebuffer.len();
-            core::slice::from_raw_parts_mut(ptr, len)
+        let (width, height) = match gpu.edid_supported_resolutions() {
+            Ok(resolutions) if !resolutions.is_empty() => resolutions
+                .into_iter()
+                .filter(|&(w, h)| w <= 1024 && h <= 768)
+                .min()
+                .unwrap_or((1024, 768)),
+            _ => (1024, 768),
         };
+
+        let framebuffer_slice = gpu
+            .change_resolution(width, height)
+            .map_err(anyhow::Error::from)?;
+
+        let ptr = framebuffer_slice.as_ptr() as *mut u8;
+        let len = framebuffer_slice.len();
+
+        let display = unsafe { GpuDisplay::new(width, height, ptr, len) };
+
+        log::info!(
+            "Initializing GPU display with dimensions {}x{}...",
+            width,
+            height
+        );
 
         self.device.run(|dev| *dev = Some(DriverState { gpu }));
 
-        let display = GpuDisplay {
-            width: res.0,
-            height: res.1,
-            framebuffer: &mut *framebuffer,
-        };
-
-        log::info!("Initializing GPU display...");
         crate::control::display::DISPLAY.init(Box::new(display));
+
+        crate::control::CONTROL
+            .get()
+            .run(|ctrl| ctrl.refresh_display());
 
         Ok(())
     }
@@ -132,7 +145,24 @@ pub struct DriverState {
 pub struct GpuDisplay {
     width: u32,
     height: u32,
-    framebuffer: &'static [u8],
+    framebuffer_ptr: SendSyncWrapper<*mut u8>,
+    framebuffer_len: usize,
+}
+
+impl GpuDisplay {
+    /// Create a new [GpuDisplay].
+    ///
+    /// # Safety
+    ///
+    /// The given pointer and slice length must be correct.
+    pub unsafe fn new(width: u32, height: u32, ptr: *mut u8, len: usize) -> Self {
+        Self {
+            width,
+            height,
+            framebuffer_ptr: unsafe { SendSyncWrapper::new(ptr) },
+            framebuffer_len: len,
+        }
+    }
 }
 
 impl Display for GpuDisplay {
@@ -154,9 +184,9 @@ impl Display for GpuDisplay {
 
     fn buffer(&mut self) -> &mut [u8] {
         unsafe {
-            let ptr = self.framebuffer.as_ptr() as *mut u8;
-            let len = self.framebuffer.len();
-            core::slice::from_raw_parts_mut(ptr, len)
+            let ptr = *self.framebuffer_ptr.inner();
+            assert!(!ptr.is_null(), "Framebuffer pointer is null");
+            core::slice::from_raw_parts_mut(ptr, self.framebuffer_len)
         }
     }
 

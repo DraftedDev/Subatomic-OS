@@ -67,13 +67,9 @@ static MODULES_REQUEST: ModulesRequest = ModulesRequest::new();
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
-/// Returns the [FramebufferResponse].
-pub fn framebuffer<'a>() -> &'a FramebufferResponse {
-    unsafe {
-        FRAMEBUFFER_REQUEST
-            .response()
-            .expect("Failed to get framebuffer response")
-    }
+/// Returns the [FramebufferResponse] if it exists or [None].
+pub fn framebuffer<'a>() -> Option<&'a FramebufferResponse> {
+    unsafe { FRAMEBUFFER_REQUEST.response() }
 }
 
 /// Returns the [RsdpResponse].

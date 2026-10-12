@@ -10,6 +10,8 @@ use embedded_graphics::prelude::{DrawTarget, Point, Size};
 use embedded_graphics::primitives::Rectangle;
 
 /// Global display instance for writing graphics data to the framebuffer.
+///
+/// When setting the display, make sure to also refresh the control display state.
 pub static DISPLAY: InitData<Box<dyn Display>> = InitData::uninit();
 
 /// A general display abstraction.
@@ -51,9 +53,10 @@ pub struct BootDisplay {
 
 impl BootDisplay {
     /// Create a new display instance.
-    pub fn new() -> Self {
-        // TODO: config without display?
-        let fb = *requests::framebuffer()
+    ///
+    /// Returns [None] if no framebuffer was found.
+    pub fn new() -> Option<Self> {
+        let fb = *requests::framebuffer()?
             .framebuffers()
             .iter()
             .next()
@@ -66,13 +69,13 @@ impl BootDisplay {
 
         let slice = unsafe { core::slice::from_raw_parts_mut(fb.address() as *mut u8, fb_size) };
 
-        Self {
+        Some(Self {
             width,
             height,
             pitch,
             fb: slice,
             backbuffer: vec![0; fb_size],
-        }
+        })
     }
 }
 
@@ -100,6 +103,47 @@ impl Display for BootDisplay {
     fn flush(&mut self) {
         self.fb.copy_from_slice(&self.backbuffer);
     }
+}
+
+/// A no-op display.
+///
+/// Used initially if no [BootDisplay] could be created.
+pub struct NoopDisplay {
+    buffer: Vec<u8>,
+}
+
+impl NoopDisplay {
+    /// Create a new no-op display.
+    pub fn new() -> Self {
+        let size = (10 * 10 * 4) as usize;
+        Self {
+            buffer: vec![0; size],
+        }
+    }
+}
+
+impl Display for NoopDisplay {
+    fn width(&self) -> u32 {
+        10
+    }
+
+    fn height(&self) -> u32 {
+        10
+    }
+
+    fn stride(&self) -> u32 {
+        10 * 4
+    }
+
+    fn format(&self) -> PixelFormat {
+        PixelFormat::Bgra8888
+    }
+
+    fn buffer(&mut self) -> &mut [u8] {
+        &mut self.buffer
+    }
+
+    fn flush(&mut self) {}
 }
 
 impl Dimensions for Box<dyn Display> {

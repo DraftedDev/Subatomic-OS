@@ -76,6 +76,48 @@ impl AtomicFrameAllocator {
         }
     }
 
+    /// Allocates a physically contiguous block of `pages` 4KiB frames.
+    pub fn allocate_contiguous(&self, pages: usize) -> Option<PhysFrame<Size4KiB>> {
+        if pages == 0 {
+            return None;
+        }
+
+        let required_bytes = (pages * 4096) as u64;
+
+        for region in &self.regions[..self.region_count] {
+            let region_size = region.end - region.start;
+            if region_size < required_bytes {
+                continue;
+            }
+
+            let mut candidate = region.start;
+            while candidate + required_bytes <= region.end {
+                let current = self.current_addr.load(Ordering::Acquire);
+
+                if candidate >= current {
+                    match self.current_addr.compare_exchange_weak(
+                        current,
+                        candidate + required_bytes,
+                        Ordering::Release,
+                        Ordering::Acquire,
+                    ) {
+                        Ok(_) => {
+                            self.free_count.fetch_sub(pages, Ordering::Relaxed);
+                            return Some(PhysFrame::containing_address(PhysAddr::new(candidate)));
+                        }
+                        Err(_) => {
+                            core::hint::spin_loop();
+                            continue;
+                        }
+                    }
+                }
+                candidate += 4096;
+            }
+        }
+
+        None
+    }
+
     fn allocate_frame_internal(&self) -> Option<PhysFrame<Size4KiB>> {
         let phys_mem_offset = phys_mem_offset();
 

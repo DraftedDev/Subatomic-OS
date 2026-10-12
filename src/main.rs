@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use kernel_core::control::display::{BootDisplay, DISPLAY};
+use kernel_core::control::display::{BootDisplay, DISPLAY, NoopDisplay};
 use kernel_core::info::KernelInfo;
 use kernel_core::requests::BASE_REVISION;
 use kernel_core::{api, control, logger, module, scheduler};
@@ -80,8 +80,13 @@ unsafe fn init(filter: LevelFilter) {
         module::init();
     }
 
-    log::info!("Initializing Display...");
-    DISPLAY.init(Box::new(BootDisplay::new()));
+    log::info!("Initializing Boot Display...");
+    if let Some(display) = BootDisplay::new() {
+        DISPLAY.init(Box::new(display));
+    } else {
+        log::info!("Framebuffer not found. Skipping boot display.");
+        DISPLAY.init(Box::new(NoopDisplay::new()));
+    }
 
     log::info!("Initializing Control...");
     unsafe {

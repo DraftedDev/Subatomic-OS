@@ -100,7 +100,6 @@ impl Control {
             if inner.is_dirty() {
                 inner.handle_input(&self.queue);
                 inner.render();
-
                 inner.set_dirty(false);
             }
         });
@@ -239,6 +238,32 @@ impl InnerControl {
             history_index: None,
             saved_draft: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
         }
+    }
+
+    /// Refreshes the internal control display state.
+    pub fn refresh_display(&mut self) {
+        self.terminal = unsafe {
+            SendSyncWrapper::new(
+                Terminal::new(EmbeddedBackend::new(
+                    DISPLAY.get_mut(),
+                    EmbeddedBackendConfig {
+                        flush_callback: Box::new(|display| {
+                            display.flush();
+                        }),
+                        font_regular: mousefood::fonts::MONO_9X18,
+                        font_bold: Some(mousefood::fonts::MONO_9X18_BOLD),
+                        font_italic: None,
+                        vertical_alignment: TerminalAlignment::Start,
+                        horizontal_alignment: TerminalAlignment::Start,
+                    },
+                ))
+                .expect("Failed to build terminal"),
+            )
+        };
+
+        let backend_size = self.terminal.size().expect("Failed to get backend size");
+
+        self.max_width = backend_size.width.saturating_sub(2) as usize;
     }
 
     /// Returns whether the control state is dirty.
@@ -394,7 +419,6 @@ impl InnerControl {
     }
 
     fn render_terminal(&mut self) {
-        // Parse temp buffer if not empty
         if !self.string_buf.is_empty() {
             let string = core::mem::take(&mut self.string_buf);
 
@@ -422,34 +446,32 @@ impl InnerControl {
             }
         }
 
-        let screen = Rect::from(
-            self.terminal
-                .backend()
-                .size()
-                .expect("Failed to get backend size"),
-        );
+        let backend_size = match self.terminal.backend().size() {
+            Ok(size) => size,
+            Err(_) => return,
+        };
 
-        self.terminal
-            .draw(|frame| {
-                let block = Block::new()
-                    .borders(Borders::all())
-                    .border_type(BorderType::Rounded);
+        let screen = Rect::from(backend_size);
 
-                let inner = block.inner(screen);
+        let _ = self.terminal.draw(|frame| {
+            let block = Block::new()
+                .borders(Borders::all())
+                .border_type(BorderType::Rounded);
 
-                frame.render_widget(
-                    TerminalBox::new(
-                        &self.lines,
-                        &self.command,
-                        Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
-                        self.scroll_offset,
-                    ),
-                    inner,
-                );
+            let inner = block.inner(screen);
 
-                frame.render_widget(block, screen);
-            })
-            .expect("Failed to draw terminal");
+            frame.render_widget(
+                TerminalBox::new(
+                    &self.lines,
+                    &self.command,
+                    Style::new(Self::FOREGROUND, Self::BACKGROUND, Attributes::empty()),
+                    self.scroll_offset,
+                ),
+                inner,
+            );
+
+            frame.render_widget(block, screen);
+        });
     }
 
     fn handle_command(&mut self, command: AppCommand) {
