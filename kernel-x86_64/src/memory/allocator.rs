@@ -9,7 +9,7 @@ use x86_64::VirtAddr;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 
 pub const HEAP_START: usize = 0xffff_8800_0000_0000;
-pub const HEAP_SIZE: usize = 16 * 1024 * 1024; // 16 MB
+pub const HEAP_SIZE: usize = 64 * 1024 * 1024; // 64 MB
 pub const PAGE_SIZE: usize = 4096;
 pub const TOTAL_PAGES: usize = HEAP_SIZE / PAGE_SIZE;
 
