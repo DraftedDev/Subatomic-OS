@@ -52,7 +52,11 @@ pub const KERNEL_API: KernelApi = KernelApi {
     },
     memory: MemoryApi {
         is_init: || memory::allocator::is_init(),
-        alloc: |layout| unsafe { memory::allocator::GLOBAL_ALLOCATOR.get_unsafe().alloc(layout) },
+        alloc: |layout| unsafe {
+            memory::allocator::GLOBAL_ALLOCATOR
+                .get_unsafe()
+                .alloc(layout)
+        },
         alloc_zeroed: |layout| unsafe {
             memory::allocator::GLOBAL_ALLOCATOR
                 .get_unsafe()
@@ -68,8 +72,10 @@ pub const KERNEL_API: KernelApi = KernelApi {
                 .get_unsafe()
                 .realloc(ptr, layout, new_size)
         },
-        translate,
+        translate_phys,
+        translate_virt,
         map_to,
+        map_range_to,
         dma_alloc: |size| unsafe { memory::dma::dma_alloc(size) },
         dma_dealloc: |p_addr, _, pages| unsafe { memory::dma::dma_dealloc(p_addr, pages) },
         dma_sync_device: |_, _, _| (),
@@ -103,7 +109,13 @@ fn seed_fast() -> u64 {
     (tsc ^ rip).wrapping_mul(0x9E3779B97F4A7C15)
 }
 
-unsafe fn translate(addr: usize) -> usize {
+unsafe fn translate_phys(addr: usize) -> usize {
+    memory::mapper::translate_phys_addr(PhysAddr::new(addr as u64))
+        .expect("Failed to translate address")
+        .as_u64() as usize
+}
+
+unsafe fn translate_virt(addr: usize) -> usize {
     memory::mapper::translate_addr(VirtAddr::new(addr as u64))
         .expect("Failed to translate address")
         .as_u64() as usize
@@ -127,5 +139,32 @@ unsafe fn map_to(addr: usize, writable: bool, cache: bool, ignore_present: bool)
         }
     } else {
         unsafe { memory::mapper::map_address(PhysAddr::new(addr as u64), flags) }.as_u64() as usize
+    }
+}
+
+unsafe fn map_range_to(
+    addr: usize,
+    size: usize,
+    writable: bool,
+    cache: bool,
+    ignore_present: bool,
+) -> usize {
+    let mut flags = PageTableFlags::PRESENT;
+
+    if writable {
+        flags.insert(PageTableFlags::WRITABLE);
+    }
+
+    if !cache {
+        flags.insert(PageTableFlags::NO_CACHE);
+    }
+
+    if ignore_present || memory::mapper::translate_phys_addr(PhysAddr::new(addr as u64)).is_none() {
+        unsafe {
+            memory::mapper::map_address_range(PhysAddr::new(addr as u64), size, flags).as_u64()
+                as usize
+        }
+    } else {
+        0
     }
 }

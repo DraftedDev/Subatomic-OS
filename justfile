@@ -56,7 +56,7 @@ qemu: get-ovmf build-iso
         -cdrom {{ iso_path }} \
         -serial stdio \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-        -device virtio-gpu-pci \
+        -device virtio-gpu-pci,xres=720,yres=480 \
         -vga virtio \
         -display sdl,gl=on \
         -machine q35 \

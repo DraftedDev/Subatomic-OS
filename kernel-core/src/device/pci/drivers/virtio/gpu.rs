@@ -88,7 +88,6 @@ impl PciDriver for VirtioGpuDriver {
         let (width, height) = gpu
             .edid_preferred_resolution()
             .map_err(anyhow::Error::from)?;
-
         let framebuffer_slice = gpu
             .change_resolution(width, height)
             .map_err(anyhow::Error::from)?;

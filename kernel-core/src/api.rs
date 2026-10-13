@@ -232,9 +232,19 @@ pub struct MemoryApi {
     /// See [core::alloc::GlobalAlloc::realloc].
     pub realloc: unsafe fn(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8,
     /// Translates a physical address to a virtual address.
-    pub translate: unsafe fn(addr: usize) -> usize,
+    pub translate_phys: unsafe fn(addr: usize) -> usize,
+    /// Translate a virtual address to a physical address.
+    pub translate_virt: unsafe fn(addr: usize) -> usize,
     /// Maps the given physical address to a virtual address.
     pub map_to: unsafe fn(addr: usize, writable: bool, cache: bool, ignore_present: bool) -> usize,
+    /// Maps the given physical address range to a virtual address.
+    pub map_range_to: unsafe fn(
+        start: usize,
+        size: usize,
+        writable: bool,
+        cache: bool,
+        ignore_present: bool,
+    ) -> usize,
     /// Allocates contiguous physical DMA memory.
     pub dma_alloc: unsafe fn(pages: usize) -> Option<(usize, usize)>,
     /// Deallocates contiguous physical DMA memory.
@@ -294,8 +304,17 @@ impl MemoryApi {
     /// # Safety
     ///
     /// The specified address must be valid.
-    pub unsafe fn translate(&self, addr: usize) -> usize {
-        unsafe { (self.translate)(addr) }
+    pub unsafe fn translate_phys(&self, addr: usize) -> usize {
+        unsafe { (self.translate_phys)(addr) }
+    }
+
+    /// Translates a virtual address to a physical address.
+    ///
+    /// # Safety
+    ///
+    /// The specified address must be valid.
+    pub unsafe fn translate_virt(&self, addr: usize) -> usize {
+        unsafe { (self.translate_virt)(addr) }
     }
 
     /// Maps the given physical address to a virtual address.
@@ -314,6 +333,25 @@ impl MemoryApi {
         ignore_present: bool,
     ) -> usize {
         unsafe { (self.map_to)(addr, writable, cache, ignore_present) }
+    }
+
+    /// Maps the given physical address range to a virtual address.
+    ///
+    /// If `ignore_present` is [true], the mapper will not throw a
+    /// page-already-mapped error if the address is already mapped.
+    ///
+    /// # Safety
+    ///
+    /// The specified address must be valid.
+    pub unsafe fn map_range_to(
+        &self,
+        addr: usize,
+        size: usize,
+        writable: bool,
+        cache: bool,
+        ignore_present: bool,
+    ) -> usize {
+        unsafe { (self.map_range_to)(addr, size, writable, cache, ignore_present) }
     }
 
     /// Allocates contiguous physical DMA memory.

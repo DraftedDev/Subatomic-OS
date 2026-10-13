@@ -41,7 +41,7 @@ unsafe impl Hal for KernelHal {
 
     unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> PhysAddr {
         let v_addr = buffer.as_ptr() as *mut u8 as usize;
-        let p_addr = unsafe { api::memory().translate(v_addr) };
+        let p_addr = unsafe { api::memory().translate_virt(v_addr) };
 
         unsafe {
             api::memory().dma_sync_device(p_addr, buffer.len(), convert_direction(direction));
