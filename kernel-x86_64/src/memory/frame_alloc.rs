@@ -8,6 +8,9 @@ use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PhysFrame, Si
 
 const MAX_REGIONS: usize = 32;
 
+#[allow(clippy::declare_interior_mutable_const)]
+const EMPTY_REGION: PhysRegion = PhysRegion::empty();
+
 /// Global atomic, lockless frame allocator
 static mut FRAME_ALLOCATOR: AtomicFrameAllocator = AtomicFrameAllocator::new();
 
@@ -26,7 +29,6 @@ pub struct AtomicFrameAllocator {
     regions: [PhysRegion; MAX_REGIONS],
     region_count: usize,
     current_region: AtomicUsize,
-    current_addr: AtomicU64,
     free_count: AtomicUsize,
 }
 
@@ -34,10 +36,9 @@ impl AtomicFrameAllocator {
     pub const fn new() -> Self {
         Self {
             head: AtomicU64::new(0),
-            regions: [PhysRegion { start: 0, end: 0 }; MAX_REGIONS],
+            regions: [EMPTY_REGION; MAX_REGIONS],
             region_count: 0,
             current_region: AtomicUsize::new(0),
-            current_addr: AtomicU64::new(0),
             free_count: AtomicUsize::new(0),
         }
     }
@@ -61,7 +62,7 @@ impl AtomicFrameAllocator {
             let frame_count = (end - start) / 4096;
 
             if frame_count > 0 {
-                self.regions[reg_idx] = PhysRegion { start, end };
+                self.regions[reg_idx] = PhysRegion::new(start, end);
                 total_frames += frame_count as usize;
                 reg_idx += 1;
             }
@@ -69,11 +70,7 @@ impl AtomicFrameAllocator {
 
         self.region_count = reg_idx;
         self.free_count.store(total_frames, Ordering::Relaxed);
-
-        if reg_idx > 0 {
-            self.current_addr
-                .store(self.regions[0].start, Ordering::Relaxed);
-        }
+        self.current_region.store(0, Ordering::Relaxed);
     }
 
     /// Allocates a physically contiguous block of `pages` 4KiB frames.
@@ -83,35 +80,35 @@ impl AtomicFrameAllocator {
         }
 
         let required_bytes = (pages * 4096) as u64;
+        let start_reg = self.current_region.load(Ordering::Acquire);
 
-        for region in &self.regions[..self.region_count] {
-            let region_size = region.end - region.start;
-            if region_size < required_bytes {
+        for reg_idx in start_reg..self.region_count {
+            let region = &self.regions[reg_idx];
+            if region.end.saturating_sub(region.start) < required_bytes {
                 continue;
             }
 
-            let mut candidate = region.start;
-            while candidate + required_bytes <= region.end {
-                let current = self.current_addr.load(Ordering::Acquire);
-
-                if candidate >= current {
-                    match self.current_addr.compare_exchange_weak(
-                        current,
-                        candidate + required_bytes,
-                        Ordering::Release,
-                        Ordering::Acquire,
-                    ) {
-                        Ok(_) => {
-                            self.free_count.fetch_sub(pages, Ordering::Relaxed);
-                            return Some(PhysFrame::containing_address(PhysAddr::new(candidate)));
-                        }
-                        Err(_) => {
-                            core::hint::spin_loop();
-                            continue;
-                        }
-                    }
+            let mut addr = region.current.load(Ordering::Acquire);
+            loop {
+                if addr
+                    .checked_add(required_bytes)
+                    .is_none_or(|end| end > region.end)
+                {
+                    break;
                 }
-                candidate += 4096;
+
+                match region.current.compare_exchange_weak(
+                    addr,
+                    addr + required_bytes,
+                    Ordering::Release,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => {
+                        self.free_count.fetch_sub(pages, Ordering::Relaxed);
+                        return Some(PhysFrame::containing_address(PhysAddr::new(addr)));
+                    }
+                    Err(actual) => addr = actual,
+                }
             }
         }
 
@@ -144,10 +141,10 @@ impl AtomicFrameAllocator {
 
         while reg_idx < self.region_count {
             let region = &self.regions[reg_idx];
-            let addr = self.current_addr.load(Ordering::Acquire);
+            let mut addr = region.current.load(Ordering::Acquire);
 
-            if addr < region.end {
-                match self.current_addr.compare_exchange_weak(
+            while addr < region.end {
+                match region.current.compare_exchange_weak(
                     addr,
                     addr + 4096,
                     Ordering::Release,
@@ -157,22 +154,18 @@ impl AtomicFrameAllocator {
                         self.free_count.fetch_sub(1, Ordering::Relaxed);
                         return Some(PhysFrame::containing_address(PhysAddr::new(addr)));
                     }
-                    Err(_) => continue,
-                }
-            } else {
-                // Move to next region
-                let _ = self.current_region.compare_exchange(
-                    reg_idx,
-                    reg_idx + 1,
-                    Ordering::Release,
-                    Ordering::Acquire,
-                );
-                reg_idx = self.current_region.load(Ordering::Acquire);
-                if reg_idx < self.region_count {
-                    self.current_addr
-                        .store(self.regions[reg_idx].start, Ordering::Release);
+                    Err(actual) => addr = actual,
                 }
             }
+
+            // Move to next region
+            let _ = self.current_region.compare_exchange(
+                reg_idx,
+                reg_idx + 1,
+                Ordering::Release,
+                Ordering::Acquire,
+            );
+            reg_idx = core::cmp::max(reg_idx + 1, self.current_region.load(Ordering::Acquire));
         }
 
         None // Out of physical memory
@@ -222,8 +215,26 @@ impl FrameDeallocator<Size4KiB> for AtomicFrameAllocator {
     }
 }
 
-#[derive(Copy, Clone)]
 struct PhysRegion {
     start: u64,
     end: u64,
+    current: AtomicU64,
+}
+
+impl PhysRegion {
+    pub const fn empty() -> Self {
+        Self {
+            start: 0,
+            end: 0,
+            current: AtomicU64::new(0),
+        }
+    }
+
+    pub const fn new(start: u64, end: u64) -> Self {
+        Self {
+            start,
+            end,
+            current: AtomicU64::new(start),
+        }
+    }
 }

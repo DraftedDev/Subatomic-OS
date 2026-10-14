@@ -100,9 +100,7 @@ pub mod builtin {
 
     fn clear(_: String) -> Result<(), String> {
         unsafe { CONTROL.get_unsafe() }.run(|ctrl| {
-            ctrl.lines.clear();
-            ctrl.string_buf.clear();
-            ctrl.set_dirty(true);
+            ctrl.clear();
         });
 
         Ok(())

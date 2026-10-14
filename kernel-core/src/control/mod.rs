@@ -19,7 +19,7 @@ use mousefood::{EmbeddedBackend, EmbeddedBackendConfig, TerminalAlignment};
 use pc_keyboard::{DecodedKey, KeyCode};
 use ratatui::Terminal;
 use ratatui::backend::Backend;
-use ratatui::layout::Rect;
+use ratatui::layout::{Rect, Size};
 use ratatui::widgets::{Block, BorderType, Borders};
 use ustyle::{Attributes, Color, Span, Style};
 
@@ -145,8 +145,8 @@ impl Control {
         const HELP_START: &str = "Control Help:\n\n\
             This is the control, the main interface to the kernel.\n\
             You can think of this as an overarching root shell.\n\
-            Use ↑ and ↓ to scroll through the command history.\n\
-            Use Ctrl + ↑ and Ctrl + ↓ to scroll through the terminal.\n\
+            Use \u{2191} and \u{2193} to scroll through the command history.\n\
+            Use Ctrl + \u{2191} and Ctrl + \u{2193} to scroll through the terminal.\n\
             Available Commands:\n\n";
 
         let mut help = String::with_capacity(self.registry.len() * 32 + HELP_START.len());
@@ -172,6 +172,7 @@ impl Control {
 /// therefore it's locked behind [Control::run].
 pub struct InnerControl {
     terminal: SendSyncWrapper<Terminal<EmbeddedBackend<'static, Box<dyn Display>, Rgb888>>>,
+    logical_lines: Vec<Vec<(char, Style)>>,
     lines: Vec<Vec<(char, Style)>>,
     string_buf: String,
     command: String,
@@ -223,10 +224,15 @@ impl InnerControl {
             )
         };
 
-        let max_width = terminal.size().unwrap().width as usize;
+        let backend_size = terminal.size().unwrap_or(Size {
+            width: 0,
+            height: 0,
+        });
+        let max_width = backend_size.width.saturating_sub(2) as usize;
 
         Self {
             terminal,
+            logical_lines: Vec::with_capacity(Self::LINES_CAPACITY),
             lines: Vec::with_capacity(Self::LINES_CAPACITY),
             string_buf: String::with_capacity(Self::STRING_BUF_CAPACITY),
             command: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
@@ -238,6 +244,14 @@ impl InnerControl {
             history_index: None,
             saved_draft: String::with_capacity(Self::COMMAND_BUF_CAPACITY),
         }
+    }
+
+    /// Clear all stored log lines and command buffer.
+    pub fn clear(&mut self) {
+        self.logical_lines.clear();
+        self.lines.clear();
+        self.string_buf.clear();
+        self.set_dirty(true);
     }
 
     /// Refreshes the internal control display state.
@@ -264,6 +278,30 @@ impl InnerControl {
         let backend_size = self.terminal.size().expect("Failed to get backend size");
 
         self.max_width = backend_size.width.saturating_sub(2) as usize;
+        self.reflow_lines();
+        self.set_dirty(true);
+    }
+
+    /// Reflow logical lines into visual lines according to `max_width`.
+    fn reflow_lines(&mut self) {
+        self.lines.clear();
+
+        if self.max_width == 0 {
+            return;
+        }
+
+        let num_logical = self.logical_lines.len();
+        for (i, logical_line) in self.logical_lines.iter().enumerate() {
+            if logical_line.is_empty() {
+                if i + 1 < num_logical {
+                    self.lines.push(Vec::new());
+                }
+            } else {
+                for chunk in logical_line.chunks(self.max_width) {
+                    self.lines.push(chunk.to_vec());
+                }
+            }
+        }
     }
 
     /// Returns whether the control state is dirty.
@@ -425,31 +463,34 @@ impl InnerControl {
             let spans = Span::decode_capacity(&string, Self::PARSE_CAPACITY)
                 .expect("Failed to parse spans");
 
-            let mut current = Vec::with_capacity(self.max_width);
+            if self.logical_lines.is_empty() {
+                self.logical_lines.push(Vec::new());
+            }
 
             for span in spans {
                 for ch in span.text.chars() {
                     if ch == '\n' {
-                        self.lines.push(core::mem::take(&mut current));
+                        self.logical_lines.push(Vec::new());
                     } else {
-                        current.push((ch, span.style));
-
-                        if current.len() == self.max_width {
-                            self.lines.push(core::mem::take(&mut current));
-                        }
+                        self.logical_lines
+                            .last_mut()
+                            .unwrap()
+                            .push((ch, span.style));
                     }
                 }
             }
 
-            if !current.is_empty() {
-                self.lines.push(current);
-            }
+            self.reflow_lines();
         }
 
         let backend_size = match self.terminal.backend().size() {
             Ok(size) => size,
             Err(_) => return,
         };
+
+        if backend_size.width <= 2 || backend_size.height <= 2 {
+            return;
+        }
 
         let screen = Rect::from(backend_size);
 

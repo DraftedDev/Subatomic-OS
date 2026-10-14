@@ -94,8 +94,9 @@ impl PciDriver for VirtioGpuDriver {
 
         let ptr = framebuffer_slice.as_ptr() as *mut u8;
         let len = framebuffer_slice.len();
+        let stride = width * 4;
 
-        let display = unsafe { GpuDisplay::new(width, height, ptr, len) };
+        let display = unsafe { GpuDisplay::new(width, height, stride, ptr, len) };
 
         log::info!(
             "Initializing GPU display with dimensions {}x{}...",
@@ -139,6 +140,7 @@ pub struct DriverState {
 pub struct GpuDisplay {
     width: u32,
     height: u32,
+    stride: u32,
     framebuffer_ptr: SendSyncWrapper<*mut u8>,
     framebuffer_len: usize,
 }
@@ -149,10 +151,11 @@ impl GpuDisplay {
     /// # Safety
     ///
     /// The given pointer and slice length must be correct.
-    pub unsafe fn new(width: u32, height: u32, ptr: *mut u8, len: usize) -> Self {
+    pub unsafe fn new(width: u32, height: u32, stride: u32, ptr: *mut u8, len: usize) -> Self {
         Self {
             width,
             height,
+            stride,
             framebuffer_ptr: unsafe { SendSyncWrapper::new(ptr) },
             framebuffer_len: len,
         }
@@ -169,7 +172,7 @@ impl Display for GpuDisplay {
     }
 
     fn stride(&self) -> u32 {
-        self.width * 4
+        self.stride
     }
 
     fn format(&self) -> PixelFormat {
@@ -186,10 +189,9 @@ impl Display for GpuDisplay {
 
     fn flush(&mut self) {
         VirtioGpuDriver::fetch(|state| {
-            state
-                .gpu
-                .flush()
-                .unwrap_or_else(|err| log::error!("Failed to flush virtio GPU buffer: {err}"));
+            state.gpu.flush().unwrap_or_else(|err| {
+                log::error!("Failed to flush virtio GPU buffer: {err}");
+            });
         });
     }
 }

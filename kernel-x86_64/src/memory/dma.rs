@@ -29,7 +29,6 @@ pub unsafe fn dma_alloc(pages: usize) -> Option<(usize, usize)> {
     let p_usize = p_start.as_u64() as usize;
     let v_usize = p_usize + offset as usize;
 
-    // TODO: This really necessary?
     unsafe {
         core::ptr::write_bytes(v_usize as *mut u8, 0, size);
     }
@@ -43,11 +42,11 @@ pub unsafe fn dma_alloc(pages: usize) -> Option<(usize, usize)> {
 ///
 /// The caller must ensure that the physical address
 /// and number of pages are valid and correspond to previously allocated DMA memory.
-pub unsafe fn dma_dealloc(p_addr: usize, pages: usize) {
+pub unsafe fn dma_dealloc(p_addr: usize, _virt_addr: usize, pages: usize) {
     let alloc = frame_alloc::get();
 
     for i in 0..pages {
-        let frame_p_addr = PhysAddr::new((p_addr + i * 4096) as u64);
+        let frame_p_addr = PhysAddr::new((p_addr + i * PAGE_SIZE) as u64);
         let frame = PhysFrame::<Size4KiB>::containing_address(frame_p_addr);
 
         unsafe {

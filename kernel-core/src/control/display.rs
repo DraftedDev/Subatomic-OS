@@ -161,17 +161,21 @@ impl DrawTarget for Box<dyn Display> {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         let stride = self.stride() as usize;
-        let w = self.width();
-        let h = self.height();
+        let w = self.width() as i32;
+        let h = self.height() as i32;
+
         let buf = self.buffer();
+        let len = buf.len();
 
         for Pixel(Point { x, y }, color) in pixels {
-            if x >= 0 && x < w as i32 && y >= 0 && y < h as i32 {
+            if x >= 0 && x < w && y >= 0 && y < h {
                 let idx = (y as usize * stride) + (x as usize * 4);
-                buf[idx] = color.b();
-                buf[idx + 1] = color.g();
-                buf[idx + 2] = color.r();
-                buf[idx + 3] = 0xFF;
+                if idx + 3 < len {
+                    buf[idx] = color.b();
+                    buf[idx + 1] = color.g();
+                    buf[idx + 2] = color.r();
+                    buf[idx + 3] = 0xFF;
+                }
             }
         }
 
