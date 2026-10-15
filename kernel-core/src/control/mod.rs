@@ -375,8 +375,10 @@ impl InnerControl {
 
                         // Else => push to command
                         _ => {
-                            self.command.push(ch);
-                            self.scroll_offset = 0;
+                            if !ch.is_control() {
+                                self.command.push(ch);
+                                self.scroll_offset = 0;
+                            }
                         }
                     },
 
