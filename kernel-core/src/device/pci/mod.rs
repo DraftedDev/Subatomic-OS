@@ -3,7 +3,7 @@ use crate::collections::FastMap;
 use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
 use crate::device::pci::config::PciConfig;
-use crate::device::pci::drivers::virtio;
+use crate::device::pci::drivers::{virtio, xhci};
 use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
 use crate::sync::init::InitData;
@@ -48,9 +48,12 @@ pub unsafe fn init<'a>(ecam_base: usize) -> &'a mut RwLock<PciDeviceHub> {
 
 /// Add built-in drivers to the global [PCI_HUB].
 pub fn add_builtin_drivers() -> Result<(), PciError> {
-    PCI_HUB
-        .get()
-        .run_mut(|hub| hub.register(Box::new(virtio::gpu::VirtioGpuDriver::new())))
+    PCI_HUB.get().run_mut(|hub| {
+        hub.register(Box::new(virtio::gpu::VirtioGpuDriver::new()))?;
+        hub.register(Box::new(xhci::XhciControllerDriver::new()))?;
+
+        Ok(())
+    })
 }
 
 /// The device hub to control all PCI devices.

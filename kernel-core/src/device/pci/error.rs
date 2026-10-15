@@ -17,6 +17,8 @@ pub enum PciError {
     DriverHubFull,
     /// The target device does not support MSI.
     MsiUnsupported,
+    /// The driver could not a find a requested device bar.
+    BarNotFound,
     /// An untyped generic error occurred.
     Generic(anyhow::Error),
 }
@@ -31,6 +33,7 @@ impl Display for PciError {
             PciError::DriverNotReady => write!(f, "Driver not ready"),
             PciError::DriverHubFull => write!(f, "Driver hub is full"),
             PciError::MsiUnsupported => write!(f, "MSI is unsupported on this device"),
+            PciError::BarNotFound => write!(f, "Requested bar not found"),
             PciError::Generic(err) => write!(f, "Generic error: {}", err),
         }
     }
