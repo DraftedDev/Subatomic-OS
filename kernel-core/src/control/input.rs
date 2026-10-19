@@ -1,9 +1,12 @@
-use core::sync::atomic::Ordering;
+use core::{str::FromStr, sync::atomic::Ordering};
 
 use crate::sync::init::InitData;
 use bitflags::bitflags;
 use crossbeam_queue::ArrayQueue;
-use pc_keyboard::{DecodedKey, Modifiers};
+use pc_keyboard::{
+    DecodedKey, HandleControl, KeyCode, KeyboardLayout, Modifiers, PhysicalKeyboard,
+    layouts::{Azerty, Colemak, DVP104Key, De105Key, Dvorak104Key, Jis109Key, Uk105Key, Us104Key},
+};
 use portable_atomic::AtomicU8;
 
 /// The global [InputControl] instance.
@@ -106,5 +109,93 @@ bitflags! {
         const L_ALT = 1 << 6;
         /// Right alt key is pressed.
         const R_ALT = 1 << 7;
+    }
+}
+
+/// The layout of a PS/2 or USB keyboard.
+#[derive(Copy, Clone, Debug)]
+pub enum KeyLayout {
+    /// See [DVP104Key].
+    DVP104Key,
+    /// See [Dvorak104Key].
+    Dvorak104Key,
+    /// See [Us104Key].
+    Us104Key,
+    /// See [Uk105Key].
+    Uk105Key,
+    /// See [Jis109Key].
+    Jis109Key,
+    /// See [Azerty].
+    Azerty,
+    /// See [Colemak].
+    Colemak,
+    /// See [De105Key].
+    De105Key,
+}
+
+impl KeyLayout {
+    /// Get the keyboard layout as string.
+    pub const fn as_str(&self) -> &str {
+        match self {
+            KeyLayout::DVP104Key => "dvp104",
+            KeyLayout::Dvorak104Key => "dvorak104",
+            KeyLayout::Us104Key => "us104",
+            KeyLayout::Uk105Key => "uk105",
+            KeyLayout::Jis109Key => "jis109",
+            KeyLayout::Azerty => "azerty",
+            KeyLayout::Colemak => "colemak",
+            KeyLayout::De105Key => "de105",
+        }
+    }
+}
+
+impl KeyboardLayout for KeyLayout {
+    fn map_keycode(
+        &self,
+        keycode: KeyCode,
+        modifiers: &Modifiers,
+        handle_ctrl: HandleControl,
+    ) -> DecodedKey {
+        match self {
+            KeyLayout::DVP104Key => DVP104Key.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Dvorak104Key => Dvorak104Key.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Us104Key => Us104Key.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Uk105Key => Uk105Key.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Jis109Key => Jis109Key.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Azerty => Azerty.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::Colemak => Colemak.map_keycode(keycode, modifiers, handle_ctrl),
+            KeyLayout::De105Key => De105Key.map_keycode(keycode, modifiers, handle_ctrl),
+        }
+    }
+
+    fn get_physical(&self) -> PhysicalKeyboard {
+        match self {
+            KeyLayout::DVP104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Dvorak104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Us104Key => PhysicalKeyboard::Ansi,
+            KeyLayout::Uk105Key => PhysicalKeyboard::Iso,
+            KeyLayout::Jis109Key => PhysicalKeyboard::Jis,
+            KeyLayout::Azerty => PhysicalKeyboard::Iso,
+            KeyLayout::Colemak => PhysicalKeyboard::Ansi,
+            KeyLayout::De105Key => PhysicalKeyboard::Iso,
+        }
+    }
+}
+
+impl FromStr for KeyLayout {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "dvp104" => Ok(Self::DVP104Key),
+            "dvorak104" => Ok(Self::Dvorak104Key),
+            "us104" => Ok(Self::Us104Key),
+            "uk105" => Ok(Self::Uk105Key),
+            "jis109" => Ok(Self::Jis109Key),
+            "azerty" => Ok(Self::Azerty),
+            "colemak" => Ok(Self::Colemak),
+            "de105" => Ok(Self::De105Key),
+            _ => Err(()),
+        }
     }
 }

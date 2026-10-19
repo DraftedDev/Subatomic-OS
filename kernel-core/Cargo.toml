@@ -6,7 +6,7 @@ description = "Core kernel library of Subatomic OS."
 
 [dependencies]
 spin = { version = "0.12.3" }
-portable-atomic = { version = "1.15.0", default-features = false, features = ["require-cas"] }
+portable-atomic = { version = "1.15.0", default-features = false, features = [ "require-cas" ] }
 bitflags = { version = "2.13.2", default-features = false }
 
 embedded-graphics = { version = "0.8.2", features = [ "fixed_point" ] }
@@ -16,9 +16,9 @@ ustyle = "0.1.1"
 
 heapless = "0.9.3"
 crossbeam-queue = { version = "0.3.14", default-features = false, features = [ "alloc" ] }
-hashbrown = { version = "0.17.1", default-features = false, features = ["inline-more"] }
-rapidhash = { version = "4.5.1", default-features = false, features = ["nightly", "unsafe"] }
-time = { version = "0.3.55", default-features = false, features = ["alloc"] }
+hashbrown = { version = "0.17.1", default-features = false, features = [ "inline-more" ] }
+rapidhash = { version = "4.5.1", default-features = false, features = [ "nightly", "unsafe" ] }
+time = { version = "0.3.55", default-features = false, features = [ "alloc" ] }
 no-pico-args = "0.5.1"
 anyhow = { version = "1.0.104", default-features = false }
 

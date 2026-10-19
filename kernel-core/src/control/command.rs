@@ -18,6 +18,7 @@ pub struct Command {
 /// Built-in commands.
 pub mod builtin {
     use crate::control::command::Command;
+    use crate::control::input::KeyLayout;
     use crate::control::{CONTROL, app};
     use crate::device::DeviceHub;
     use crate::info::KernelInfo;
@@ -28,6 +29,7 @@ pub mod builtin {
     use alloc::format;
     use alloc::string::{String, ToString};
     use core::fmt::Write;
+    use core::str::FromStr;
     use log::Level;
     use no_pico_args::Arguments;
     use time::UtcOffset;
@@ -82,6 +84,12 @@ pub mod builtin {
             usage: "game <breakout>",
             run: game,
         },
+        Command {
+            name: "kbl",
+            description: "Set the keyboard layout",
+            usage: "kbl <list|<layout_id>>",
+            run: kbl,
+        },
         #[cfg(feature = "pci")]
         Command {
             name: "pci",
@@ -135,11 +143,11 @@ pub mod builtin {
             match sub.as_str() {
                 sub if sub == "local" || sub == "utc" => {
                     let time = if sub == "local" {
-                        api::time().read_local()
+                        api::framework().read_time_local()
                     } else if sub == "utc" {
-                        api::time().read_utc().to_offset(UtcOffset::UTC)
+                        api::framework().read_time_utc().to_offset(UtcOffset::UTC)
                     } else {
-                        api::time().read_local()
+                        api::framework().read_time_local()
                     };
 
                     log::info!(
@@ -161,7 +169,7 @@ pub mod builtin {
                     let zone =
                         TimeZone::parse(&arg).ok_or(format!("Invalid time zone: {}", arg))?;
                     let (hours, mins, secs) = zone.to_offset();
-                    api::time().set_offset(hours, mins, secs);
+                    api::framework().set_time_offset(hours, mins, secs);
 
                     log::info!(
                         "Time offset updated with hours({}) minutes({}) seconds({})",
@@ -262,7 +270,7 @@ pub mod builtin {
                         "uint" => log::info!("{}", $rng.uint(u32::MIN..=u32::MAX)),
                         "float" => log::info!("{}", $rng.float()),
                         "bool" => log::info!("{}", $rng.bool()),
-                        "seed" => log::info!("{}", api::kernel().seed(quality)),
+                        "seed" => log::info!("{}", api::framework().seed(quality)),
 
                         _ => result = Err(format!(
                             "Invalid type: {}. Available: 'seed', 'int', 'uint', 'float' and 'bool'.",
@@ -304,6 +312,32 @@ pub mod builtin {
         }?;
 
         unsafe { CONTROL.get_unsafe() }.run(|ctrl| ctrl.set_app(app));
+
+        Ok(())
+    }
+
+    fn kbl(sub: String) -> Result<(), String> {
+        if sub.as_str() == "list" {
+            log::info!(
+                r#"Available Keyboard Layouts:\n
+   - dvp104
+   - dvorak104
+   - us104
+   - uk105
+   - jis109
+   - azerty
+   - colemak
+   - de105"#
+            );
+        } else {
+            let layout = KeyLayout::from_str(&sub).map_err(|_| {
+                format!("Layout {sub} not found. Use 'list' to list available keyboard layouts.")
+            })?;
+
+            api::framework().set_keyboard(layout);
+
+            log::info!("Set keyboard layout to {sub}");
+        }
 
         Ok(())
     }

@@ -129,7 +129,7 @@ impl App for BreakoutApp {
         self.width = area.width as i16;
         self.height = area.height as i16;
 
-        let now = api::time().read_local();
+        let now = api::framework().read_time_local();
 
         if let Some(last) = self.last_update {
             let delta_ms = (now.unix_timestamp() - last.unix_timestamp()) * 1000

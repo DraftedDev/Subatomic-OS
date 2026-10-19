@@ -7,9 +7,10 @@ extern crate alloc;
 
 use core::alloc::GlobalAlloc;
 
-use kernel_core::api::{self, InterruptsApi};
-use kernel_core::api::{KernelApi, MemoryApi, PortApi, TimeApi};
+use kernel_core::api::{self, FrameworkApi, InterruptsApi};
+use kernel_core::api::{KernelApi, MemoryApi, PortApi};
 use kernel_core::info::KernelApiInfo;
+use pc_keyboard::{HandleControl, UsbKeyboard};
 use x86_64::structures::paging::PageTableFlags;
 use x86_64::{PhysAddr, VirtAddr};
 
@@ -33,7 +34,6 @@ pub const KERNEL_API: KernelApi = KernelApi {
     init: init::init,
     setup: init::setup,
     halt: x86_64::instructions::hlt,
-    seed: |quality| if quality { seed_quality() } else { seed_fast() },
     interrupts: InterruptsApi {
         disable_interrupts: x86_64::instructions::interrupts::disable,
         enable_interrupts: x86_64::instructions::interrupts::enable,
@@ -81,10 +81,18 @@ pub const KERNEL_API: KernelApi = KernelApi {
         dma_sync_device: |_, _, _| (),
         dma_sync_cpu: |_, _, _| (),
     },
-    time: TimeApi {
-        read_local: time::read_local,
-        read_utc: time::read_utc,
-        set_offset: time::set_offset,
+    framework: FrameworkApi {
+        read_time_local: time::read_local,
+        read_time_utc: time::read_utc,
+        set_time_offset: time::set_offset,
+        seed: |quality| if quality { seed_quality() } else { seed_fast() },
+        set_keyboard: |layout| unsafe {
+            crate::interrupts::keyboard::set_layout(layout);
+
+            kernel_core::drivers::usb::keyboard::UsbKeyboardDriver::fetch(|kb| {
+                *kb = UsbKeyboard::new(layout, HandleControl::MapLettersToUnicode);
+            });
+        },
     },
 };
 
@@ -93,7 +101,7 @@ fn seed_quality() -> u64 {
     let rip = x86_64::instructions::read_rip().as_u64();
 
     // TODO: use nanosecond (implement first)
-    let time = api::time().read_local().second() as u64;
+    let time = api::framework().read_time_local().second() as u64;
 
     // Mix with SplitMix64
     let mut x = tsc ^ rip ^ time;

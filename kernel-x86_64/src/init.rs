@@ -43,7 +43,7 @@ pub unsafe fn init() {
 /// The global control and display are initialized at this point.
 ///
 /// # Safety
-/// Must only be called once before any of the setup resources are used.
+/// Must only be called once before any setup resources are used.
 pub unsafe fn setup() {
     unsafe {
         let control = {
@@ -70,6 +70,9 @@ pub unsafe fn setup() {
         log::info!("Initializing USB Device Hub...");
         usb::init();
 
+        log::info!("Registering built-in USB drivers...");
+        usb::add_builtin_drivers().expect("Failed to add built-in USB drivers");
+
         control.update();
 
         log::info!("Initializing PCI Device Hub...");
@@ -92,8 +95,5 @@ pub unsafe fn setup() {
         }
 
         control.update();
-
-        log::info!("Registering built-in USB drivers...");
-        usb::add_builtin_drivers().expect("Failed to add built-in USB drivers");
     }
 }

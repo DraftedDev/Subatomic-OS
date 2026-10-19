@@ -1,5 +1,5 @@
-use crate::info::KernelApiInfo;
 use crate::sync::init::InitData;
+use crate::{control::input::KeyLayout, info::KernelApiInfo};
 use core::alloc::Layout;
 use time::{OffsetDateTime, UtcDateTime};
 
@@ -46,9 +46,9 @@ pub const fn memory() -> MemoryApi {
     kernel().memory
 }
 
-/// Get the global [TimeApi].
-pub const fn time() -> TimeApi {
-    kernel().time
+/// Get the global [FrameworkApi].
+pub const fn framework() -> FrameworkApi {
+    kernel().framework
 }
 
 /// Executes the given function without interrupts.
@@ -76,27 +76,20 @@ pub struct KernelApi {
     pub setup: unsafe fn(),
     /// The halt function to move the CPU into an idle state.
     pub halt: fn(),
-    /// Generate a seed for the random number generator.
-    pub seed: fn(quality: bool) -> u64,
     /// The [InterruptsApi] for interrupt control.
     pub interrupts: InterruptsApi,
     /// The [PortApi] for port communication.
     pub port: PortApi,
     /// The [MemoryApi] for memory management.
     pub memory: MemoryApi,
-    /// The [TimeApi] for time reading.
-    pub time: TimeApi,
+    /// The [FrameworkApi] for integral system tasks.
+    pub framework: FrameworkApi,
 }
 
 impl KernelApi {
     /// Halts the CPU into an idle state.
     pub fn halt(&self) {
         (self.halt)()
-    }
-
-    /// Generate a seed for the random number generator.
-    pub fn seed(&self, quality: bool) -> u64 {
-        (self.seed)(quality)
     }
 }
 
@@ -406,34 +399,46 @@ pub enum DmaDirection {
     Bidirectional,
 }
 
-/// The time API for the kernel.
+/// The API around the system framework.
 ///
-/// Responsible for getting the current system time.
-///
-/// *NOTE:* This is not responsible for timed intervals or scheduling stuff.
+/// Responsible for various integral, but not quite low-level tasks.
 #[derive(Copy, Clone)]
-pub struct TimeApi {
+pub struct FrameworkApi {
     /// Get the local system time.
-    pub read_local: fn() -> OffsetDateTime,
+    pub read_time_local: fn() -> OffsetDateTime,
     /// Get the UTC system time.
-    pub read_utc: fn() -> UtcDateTime,
+    pub read_time_utc: fn() -> UtcDateTime,
     /// Set the offset of the local time.
-    pub set_offset: fn(hours: i8, minutes: i8, seconds: i8),
+    pub set_time_offset: fn(hours: i8, minutes: i8, seconds: i8),
+    /// Generate a seed for the random number generator.
+    pub seed: fn(quality: bool) -> u64,
+    /// Set the keyboard layout.
+    pub set_keyboard: fn(layout: KeyLayout),
 }
 
-impl TimeApi {
+impl FrameworkApi {
     /// Read the local system time from the internal clock.
-    pub fn read_local(&self) -> OffsetDateTime {
-        (self.read_local)()
+    pub fn read_time_local(&self) -> OffsetDateTime {
+        (self.read_time_local)()
     }
 
     /// Read the UTC system time from the internal clock.
-    pub fn read_utc(&self) -> UtcDateTime {
-        (self.read_utc)()
+    pub fn read_time_utc(&self) -> UtcDateTime {
+        (self.read_time_utc)()
     }
 
     /// Set the offset of the local time.
-    pub fn set_offset(&self, hours: i8, minutes: i8, seconds: i8) {
-        (self.set_offset)(hours, minutes, seconds)
+    pub fn set_time_offset(&self, hours: i8, minutes: i8, seconds: i8) {
+        (self.set_time_offset)(hours, minutes, seconds)
+    }
+
+    /// Generate a seed for the random number generator.
+    pub fn seed(&self, quality: bool) -> u64 {
+        (self.seed)(quality)
+    }
+
+    /// Set the keyboard layout.
+    pub fn set_keyboard(&self, layout: KeyLayout) {
+        (self.set_keyboard)(layout)
     }
 }
