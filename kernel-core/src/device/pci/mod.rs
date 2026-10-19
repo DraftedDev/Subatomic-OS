@@ -3,9 +3,9 @@ use crate::collections::FastMap;
 use crate::device::pci::caps::PciCapabilities;
 use crate::device::pci::classes::Class;
 use crate::device::pci::config::PciConfig;
-use crate::device::pci::drivers::{virtio, xhci};
 use crate::device::pci::error::PciError;
 use crate::device::{Device, DeviceHub};
+use crate::drivers::pci::{virtio, xhci};
 use crate::sync::init::InitData;
 use crate::sync::rwlock::RwLock;
 use alloc::boxed::Box;
@@ -26,9 +26,6 @@ pub mod config;
 
 /// Contains the [PciError] type.
 pub mod error;
-
-/// Contains built-in PCI drivers.
-pub mod drivers;
 
 /// A hardware abstraction layer for PCI devices.
 pub mod hal;

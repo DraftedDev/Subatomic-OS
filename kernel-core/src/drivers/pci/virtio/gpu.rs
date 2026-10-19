@@ -2,9 +2,9 @@ use crate::{
     api,
     control::display::{Display, PixelFormat},
     device::pci::{
-        InterruptStatus, PCI_HUB, PciDevice, PciDriver, drivers::virtio::VirtIoPciAccess,
-        error::PciError, hal::KernelHal,
+        InterruptStatus, PCI_HUB, PciDevice, PciDriver, error::PciError, hal::KernelHal,
     },
+    drivers::pci::virtio::VirtIoPciAccess,
     sync::mutex::Mutex,
     wrapper::SendSyncWrapper,
 };

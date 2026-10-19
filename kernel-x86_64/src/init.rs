@@ -2,6 +2,7 @@ use crate::acpi::ACPI;
 use crate::interrupts::{apic, idt};
 use crate::memory::{allocator, frame_alloc, mapper};
 use crate::{cpuid, gdt, memory};
+use kernel_core::device::usb;
 use kernel_core::device::{DeviceHub, pci};
 use x86_64::PhysAddr;
 use x86_64::structures::paging::PageTableFlags;
@@ -45,26 +46,31 @@ pub unsafe fn init() {
 /// Must only be called once before any of the setup resources are used.
 pub unsafe fn setup() {
     unsafe {
-        {
+        let control = {
             log::info!("Registering architecture specific commands...");
             let control = kernel_core::control::CONTROL.get_mut();
 
             for command in crate::commands::COMMANDS {
                 control.register(command);
             }
-        }
 
-        kernel_core::control::CONTROL.get_unsafe().update();
+            control
+        };
+
+        control.update();
 
         log::info!("Initializing Advanced Configuration and Power Interface...");
         crate::acpi::init();
 
-        kernel_core::control::CONTROL.get_unsafe().update();
+        control.update();
 
         log::info!("Initializing Advanced Programmable Interrupt Controller...");
         apic::init();
 
-        kernel_core::control::CONTROL.get_unsafe().update();
+        log::info!("Initializing USB Device Hub...");
+        usb::init();
+
+        control.update();
 
         log::info!("Initializing PCI Device Hub...");
         {
@@ -81,8 +87,13 @@ pub unsafe fn setup() {
                 .run_mut(|hub| hub.init())
                 .expect("Failed to initialize PCI Hub");
 
-            pci::add_builtin_drivers()
-                .unwrap_or_else(|err| log::error!("Failed to add driver: {err}"));
+            log::info!("Registering built-in PCI drivers...");
+            pci::add_builtin_drivers().expect("Failed to add built-in PCI drivers");
         }
+
+        control.update();
+
+        log::info!("Registering built-in USB drivers...");
+        usb::add_builtin_drivers().expect("Failed to add built-in USB drivers");
     }
 }

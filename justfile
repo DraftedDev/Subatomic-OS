@@ -58,6 +58,7 @@ qemu: get-ovmf build-iso
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
         -device virtio-gpu-pci,xres=720,yres=480 \
         -device qemu-xhci,id=xhci \
+        -device usb-kbd,bus=xhci.0 \
         -vga none \
         -display gtk,gl=on,show-menubar=false \
         -machine q35 \

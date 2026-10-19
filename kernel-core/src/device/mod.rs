@@ -4,6 +4,10 @@ use alloc::vec::Vec;
 #[cfg(feature = "pci")]
 pub mod pci;
 
+/// The USB device module.
+#[cfg(feature = "pci")]
+pub mod usb;
+
 /// A generic device to implement for external devices.
 pub trait Device: Send + Sync {
     /// The unique identifier of the device.
